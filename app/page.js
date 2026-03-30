@@ -54,7 +54,7 @@ export default function Home() {
         </h1>
         <p className={styles.subtitle}>
           Analizador absoluto de métricas para SEO, AEO y GEO. 
-          Auditoría técnica avanzada y cumplimiento de directrices "Answer-First" para dominancia en inteligencia artificial y motores generativos.
+          Auditoría técnica avanzada y cumplimiento de directrices &quot;Answer-First&quot; para dominancia en inteligencia artificial y motores generativos.
         </p>
         
         <form onSubmit={analyzeUrl} className={styles.searchContainer}>

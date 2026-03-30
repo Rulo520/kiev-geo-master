@@ -157,9 +157,9 @@ export default function AnalysisReport({ data }) {
             {data.overallScore}
           </div>
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Score KIev GEO Master</h2>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Score Kiev GEO Master</h2>
         <p style={{ color: '#94a3b8', marginTop: '0.5rem', maxWidth: '600px' }}>
-          Basado en auditoría "Answer-First", estructuración para LLMs y Performance Técnica.
+          Basado en auditoría &quot;Answer-First&quot;, estructuración para LLMs y Performance Técnica.
         </p>
       </div>
 
@@ -252,7 +252,7 @@ export default function AnalysisReport({ data }) {
             {expandedCard === 2 && (
               <div className={styles.accordionExtraText}>
                 <strong>¿Por qué importa esto en tu sitio?</strong><br/>
-                Los motores generativos necesitan extraer bloques de texto cortos y verificables. Tienes un score BLUF de {data.content.blufScore}/10 y {data.content.statsCount} datos duros. Para dominar AEO, el contenido "paja" comercial debe reemplazarse por respuestas directas bajo tus subtítulos y contener citas estadísticas que le den confianza al LLM para elegirte como fuente.
+                Los motores generativos necesitan extraer bloques de texto cortos y verificables. Tienes un score BLUF de {data.content.blufScore}/10 y {data.content.statsCount} datos duros. Para dominar AEO, el contenido &quot;paja&quot; comercial debe reemplazarse por respuestas directas bajo tus subtítulos y contener citas estadísticas que le den confianza al LLM para elegirte como fuente.
               </div>
             )}
           </div>
@@ -289,7 +289,7 @@ export default function AnalysisReport({ data }) {
             {expandedCard === 3 && (
               <div className={styles.accordionExtraText}>
                 <strong>¿Por qué importa esto en tu sitio?</strong><br/>
-                Para el 2026, lo que importará es el "Share of Model". Con un SoM de {data.metrics2026.somSimulation}%, y probabilidad de RAG {data.metrics2026.ragProbability}, la IA de Google y ChatGPT te considerarán {data.metrics2026.ragProbability === 'Alta' ? 'una fuente primaria confiable' : 'una fuente secundaria que podría ser omitida'} en sus respuestas generativas directas.
+                Para el 2026, lo que importará es el &quot;Share of Model&quot;. Con un SoM de {data.metrics2026.somSimulation}%, y probabilidad de RAG {data.metrics2026.ragProbability}, la IA de Google y ChatGPT te considerarán {data.metrics2026.ragProbability === 'Alta' ? 'una fuente primaria confiable' : 'una fuente secundaria que podría ser omitida'} en sus respuestas generativas directas.
               </div>
             )}
           </div>
@@ -305,7 +305,7 @@ export default function AnalysisReport({ data }) {
         </div>
         <div className={styles.cardContent} style={{ maxHeight: 'none', opacity: 1, padding: '1rem 0' }}>
           <p style={{ color: '#cbd5e1', marginBottom: '1rem', lineHeight: 1.6 }}>
-            Basados en la estructura "Answer-First" (BLUF), Fact Density y Crawling IA de tu análisis actual, 
+            Basados en la estructura &quot;Answer-First&quot; (BLUF), Fact Density y Crawling IA de tu análisis actual, 
             estos son los pasos exactos a tomar para dominar los motores generativos.
           </p>
           
