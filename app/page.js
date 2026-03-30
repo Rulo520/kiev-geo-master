@@ -50,7 +50,7 @@ export default function Home() {
     <main className={styles.container}>
       <div className={`${styles.hero} animate-fade-in`}>
         <h1 className={styles.title}>
-          KIev <span className="gradient-text">GEO Master</span>
+          Kiev <span className="gradient-text">GEO Master</span>
         </h1>
         <p className={styles.subtitle}>
           Analizador absoluto de métricas para SEO, AEO y GEO. 
@@ -78,6 +78,10 @@ export default function Home() {
           <AnalysisReport data={results} url={url} />
         </div>
       )}
+
+      <footer className={styles.footer}>
+        <p>powered by <span style={{ fontWeight: 600, color: 'var(--primary)' }}>Kiev.Agency</span></p>
+      </footer>
     </main>
   );
 }
