@@ -22,70 +22,94 @@ export async function analyzeWebsite(url) {
   const startTime = Date.now();
   try {
     const response = await fetch(url);
-    const latency = Date.now() - startTime; // Medición de latencia real
+    const latency = Date.now() - startTime; 
     
     if (!response.ok) throw new Error("No se pudo acceder a la URL");
     
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // --- 1. Auditoría Técnica (Heurística) ---
+    // --- 1. Auditoría Técnica (Heurística Estricta) ---
     const hasRobots = await checkFileExists(url, "/robots.txt");
     const hasLlms = await checkFileExists(url, "/llms.txt");
-    const isBotBlocked = html.includes("GPTBot") || html.includes("CCBot");
+    const isBotBlocked = html.includes("GPTBot") || html.includes("CCBot") || html.includes("AdsBot-Google");
     const schemasFound = $('script[type="application/ld+json"]').length;
-    const hasGoodHierarchy = $('h1').length === 1 && $('h2').length > 0;
-    const isSSR = !html.includes("id=\"__NEXT_DATA__\"") || html.length > 5000;
-    const hasAuthor = html.toLowerCase().includes('author') || html.toLowerCase().includes('by ');
+    
+    const h1Count = $('h1').length;
+    const hasGoodHierarchy = h1Count === 1 && $('h2').length > 0;
+    const isSSR = !html.includes("id=\"__NEXT_DATA__\"") || html.length > 8000; // Umbral de SSR más exigente
+    
+    // Detección de Autoría más robusta (evitar Powered By)
+    const authorSelectors = ['[rel="author"]', '[itemprop="author"]', '.author-name', '.byline'];
+    let authorFound = false;
+    authorSelectors.forEach(s => { if ($(s).length > 0) authorFound = true; });
+    if (!authorFound) {
+      const lowerText = $('body').text().toLowerCase();
+      // Solo cuenta si hay "escrito por" o "autor" pero no "diseñado por"
+      if ((lowerText.includes("autor: ") || lowerText.includes("escrito por")) && !lowerText.includes("diseño por")) {
+        authorFound = true;
+      }
+    }
 
-    // --- 2. Estructura de Contenido (Base) ---
+    // --- 2. Estructura de Contenido (Filtrado de Ruido) ---
     const textContent = $('p, h1, h2, h3, li').text();
-    const blufFound = textContent.substring(0, 300).includes("es ") || textContent.substring(0, 300).includes("somos ");
-    const blufScoreBase = blufFound ? 9 : 3;
-    const statsCount = (textContent.match(/\d+(?:\.\d+)?%/g) || []).length + (textContent.match(/\d{4}/g) || []).length;
-    const isScannable = $('ul').length > 1 && $('h2').length > 2;
+    const blufFound = textContent.substring(0, 300).toLowerCase().match(/(es |somos |ofrecemos |somos |agencia |expertos )/);
+    const blufScoreBase = blufFound ? 7 : 2;
 
-    // --- 3. Generative Engine Optimization 2026 Metrics ---
-    let somSimulation = 20;
+    // Estadísticas Reales (Filtrar años y números de teléfono)
+    const statsMatches = textContent.match(/(\d+(?:\.\d+)?[%])|(\d{1,3}(?:,\d{3})+(?!\d))|(\d+\s+(?:usuarios|clientes|ventas|crecimiento|proyectos))/g) || [];
+    const statsCount = statsMatches.length;
+    const isScannable = $('ul').length > 1 && $('h2').length > 2 && textContent.length > 600;
+
+    // --- 3. Generative Engine Optimization 2026 Core Audit ---
+    let somSimulation = 10; // Base más baja
     let ragProbability = "Baja";
     let sentiment = "Neutral";
     let aiResult = null;
     let blufScore = blufScoreBase;
-    let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4000);
+    let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4500);
     
     if (aiClient) {
       try {
-        const prompt = `Analiza semánticamente el siguiente extracto de texto de una página web, y califica su optimización para Answer Engine Optimization (AEO) y RAG.
-Evalúa de forma OBJETIVA Y DETERMINÍSTICA basándote en:
-1. Formato "Answer-First" o BLUF (qué tan directo responde preguntas).
-2. Tono y Autoridad ("Wiki-voice", falta de sesgos subjetivos).
-3. Densidad de hechos duros (números, estadísticas, entidades).
+        const prompt = `AUDITORÍA PROFESIONAL DE SEO GENERATIVO (GEO) - MODO HIPER-CRÍTICO.
+Analiza semánticamente el extracto web y califica su optimización para Answer Engine Optimization (AEO) y RAG.
 
-Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
+SE IMPLACABLE. No regales puntos. La mayoría de sitios corporativos NO están optimizados para IA.
+Benchmarking:
+- 0-30: Desastre absoluto para IA.
+- 40-60: Sitio normal, "promedio".
+- 70-85: Sitio con buena estructura factual y técnica.
+- 90+: Casi inexistente (Wikipedia, documentación de Microsoft/Google).
+
+CRITERIOS:
+1. "Answer-First" (BLUF): ¿Responde a "qué es esto" en la primera frase con HECHOS? (Slogans como "comunicación total" penalizan).
+2. Densidad de Datos: ¿Hay métricas, entidades fuertes y claridad técnica o solo "clichés"?
+3. Voz de Autoridad: ¿Hay señales reales de E-E-A-T (autoría, experiencia)?
+
+Devuelve EXCLUSIVAMENTE un JSON válido:
 {
-  "som_score": 0,
+  "som_score": 0_100,
   "rag_probability": "Alta" | "Media" | "Baja",
-  "sentiment_analysis": "Positivo (Altamente citable)" | "Neutral" | "Negativo",
-  "bluf_score": 0,
+  "sentiment_analysis": "Positivo (Factual)" | "Neutral" | "Negativo (Persuasivo/Subjetivo)",
+  "bluf_score": 0_10,
   "geo_alignment": {
-    "directness": 0,
-    "fact_density": 0,
-    "structural_clarity": 0,
-    "authority": 0,
-    "technical_health": 0
+    "directness": 0_100,
+    "fact_density": 0_100,
+    "structural_clarity": 0_100,
+    "authority": 0_100,
+    "technical_health": 0_100
   },
   "semantic_intent": {
-    "informational": 0,
-    "commercial": 0,
-    "transactional": 0
+    "informational": 0_100,
+    "commercial": 0_100,
+    "transactional": 0_100
   },
-  "signal_to_noise": 0
+  "signal_to_noise": 0_100
 }
 
-IMPORTANTE: Los valores de score deben ser realistas. No regales 100 si no es perfecto.
-Análisis DETERMINÍSTICO: para el mismo texto de entrada, produce siempre el mismo puntaje exacto.
+IMPORTANTE: El campo 'bluf_score' es base 10. Todo lo demás base 100. Penaliza el marketing-speak vacío.
 
-Texto a analizar:
+Texto:
 """
 ${cleanText}
 """`;
@@ -95,52 +119,50 @@ ${cleanText}
           contents: prompt,
           config: {
             responseMimeType: "application/json",
-            temperature: 0 // Forzando respuestas determinísticas
+            temperature: 0
           }
         });
 
         aiResult = JSON.parse(responseAI.text);
         
-        somSimulation = aiResult.som_score || 50;
+        somSimulation = aiResult.som_score || 30;
         ragProbability = aiResult.rag_probability || "Media";
         sentiment = aiResult.sentiment_analysis || "Neutral";
         blufScore = aiResult.bluf_score || blufScore;
         
       } catch (err) {
         console.error("Error analizando con Gemini:", err);
-        somSimulation = 40 + (schemasFound > 0 ? 10 : 0) + (isScannable ? 10 : 0);
-        ragProbability = somSimulation > 65 ? "Alta" : "Media";
+        somSimulation = 30 + (schemasFound > 0 ? 10 : 0);
       }
     } else {
-      // Fallback manual si no hay API Key
-      if (schemasFound > 0) somSimulation += 15;
-      if (hasGoodHierarchy) somSimulation += 10;
-      if (blufScore >= 8) somSimulation += 15;
-      if (statsCount > 5) somSimulation += 15;
-      if (isScannable) somSimulation += 15;
+      // Fallback manual (Anti-Inflación)
+      if (schemasFound > 0) somSimulation += 10;
+      if (hasGoodHierarchy) somSimulation += 5;
+      if (statsCount > 3) somSimulation += 10;
+      if (isScannable) somSimulation += 5;
       if (hasLlms) somSimulation += 10;
-      if (somSimulation > 75) ragProbability = "Alta";
-      else if (somSimulation > 45) ragProbability = "Media";
-      if (statsCount > 10 && hasGoodHierarchy) sentiment = "Positivo (Altamente citable)";
+      if (somSimulation > 70) ragProbability = "Alta";
+      else if (somSimulation > 40) ragProbability = "Media";
     }
 
-    // --- 4. Sistema de Puntuación Kiev GEO Master (The Gold Standard) ---
-    // Pilar Técnico (0-100)
+    // --- 4. Sistema de Puntuación Kiev GEO Master (The Hard Standard) ---
+    // PILAR TÉCNICO (0-100) - Mucho más estricto
     let techScoreValue = 0;
     if (hasRobots) techScoreValue += 10;
     if (hasLlms) techScoreValue += 10;
-    if (!isBotBlocked) techScoreValue += 20;
-    if (schemasFound > 0) techScoreValue += 20;
-    if (hasGoodHierarchy) techScoreValue += 20;
+    if (!isBotBlocked) techScoreValue += 15;
+    if (schemasFound > 0) techScoreValue += 25; // JSON-LD es Vital
+    if (h1Count === 1) techScoreValue += 10; // H1 único es básico
+    if (hasGoodHierarchy) techScoreValue += 10;
     if (isSSR) techScoreValue += 20;
 
-    // Pilar de Contenido (0-100)
-    let contentScoreValue = (blufScore * 4) + 
-                           (Math.min(statsCount, 10) * 2) + 
-                           (isScannable ? 20 : 0) + 
-                           (hasAuthor ? 20 : 0);
+    // PILAR DE CONTENIDO (0-100)
+    let contentScoreValue = (blufScore * 5) + // Max 50 (Pilar central)
+                           (Math.min(statsCount, 5) * 4) + // Max 20 (Solo hechos reales)
+                           (isScannable ? 15 : 0) + 
+                           (authorFound ? 15 : 0);
 
-    // Pilar GEO/IA (0-100)
+    // PILAR GEO/IA (0-100)
     let geoScoreValue = somSimulation;
 
     // Fórmula Final Ponderada (Tech: 30%, Content: 30%, Geo: 40%)
@@ -160,14 +182,15 @@ ${cleanText}
         schemasFound,
         hasGoodHierarchy,
         isSSR,
+        h1Count,
         latencyMs: latency
       },
       content: {
         blufScore,
-        blufDetected: blufFound,
+        blufDetected: !!blufFound,
         statsCount,
         isScannable,
-        hasAuthor
+        hasAuthor: authorFound
       },
       metrics2026: {
         somSimulation: aiResult ? (aiResult.som_score || somSimulation) : somSimulation,
@@ -175,17 +198,17 @@ ${cleanText}
         sentimentScore: aiResult ? (aiResult.sentiment_analysis || sentiment) : sentiment,
         geoAlignment: (aiResult && aiResult.geo_alignment) ? aiResult.geo_alignment : {
           directness: blufScore * 10,
-          fact_density: Math.min(100, statsCount * 10),
-          structural_clarity: hasGoodHierarchy ? 90 : 40,
-          authority: hasAuthor ? 80 : 30,
-          technical_health: isSSR ? 95 : 50
+          fact_density: Math.min(100, statsCount * 20),
+          structural_clarity: hasGoodHierarchy ? 80 : 30,
+          authority: authorFound ? 70 : 20,
+          technical_health: techScoreValue
         },
         semanticIntent: (aiResult && aiResult.semantic_intent) ? aiResult.semantic_intent : {
           informational: 40,
           commercial: 30,
           transactional: 30
         },
-        signalToNoise: (aiResult && aiResult.signal_to_noise) !== undefined ? aiResult.signal_to_noise : (cleanText.length > 500 ? 80 : 40)
+        signalToNoise: (aiResult && aiResult.signal_to_noise) !== undefined ? aiResult.signal_to_noise : (cleanText.length > 800 ? 70 : 30)
       }
     };
 
