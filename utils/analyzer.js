@@ -34,14 +34,12 @@ export async function analyzeWebsite(url) {
     const schemasFound = $('script[type="application/ld+json"]').length;
     const hasGoodHierarchy = $('h1').length === 1 && $('h2').length > 0;
     const isSSR = !html.includes("id=\"__NEXT_DATA__\"") || html.length > 5000;
-    const headText = $('head').text();
     const hasAuthor = html.toLowerCase().includes('author') || html.toLowerCase().includes('by ');
 
-    // --- 2. Estructura de Contenido ---
-    const bodyText = $('body').text();
+    // --- 2. Estructura de Contenido (Base) ---
     const textContent = $('p, h1, h2, h3, li').text();
     const blufFound = textContent.substring(0, 300).includes("es ") || textContent.substring(0, 300).includes("somos ");
-    const blufScoreBase = blufFound ? 9 : 4;
+    const blufScoreBase = blufFound ? 9 : 3;
     const statsCount = (textContent.match(/\d+(?:\.\d+)?%/g) || []).length + (textContent.match(/\d{4}/g) || []).length;
     const isScannable = $('ul').length > 1 && $('h2').length > 2;
 
@@ -82,6 +80,9 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
   "signal_to_noise": 0
 }
 
+IMPORTANTE: Los valores de score deben ser realistas. No regales 100 si no es perfecto.
+Puntuaciones por debajo de 50 son normales para sitios no optimizados para IA. Todo lo derivado de bluf_score debe ser base 10. Todo lo demás base 100.
+
 Texto a analizar:
 """
 ${cleanText}
@@ -104,11 +105,11 @@ ${cleanText}
         
       } catch (err) {
         console.error("Error analizando con Gemini:", err);
-        somSimulation = 50 + (schemasFound > 0 ? 15 : 0) + (isScannable ? 15 : 0);
+        somSimulation = 40 + (schemasFound > 0 ? 10 : 0) + (isScannable ? 10 : 0);
         ragProbability = somSimulation > 65 ? "Alta" : "Media";
       }
     } else {
-      // Fallback si no hay API Key (Heurística clásica original)
+      // Fallback manual si no hay API Key
       if (schemasFound > 0) somSimulation += 15;
       if (hasGoodHierarchy) somSimulation += 10;
       if (blufScore >= 8) somSimulation += 15;
@@ -120,12 +121,35 @@ ${cleanText}
       if (statsCount > 10 && hasGoodHierarchy) sentiment = "Positivo (Altamente citable)";
     }
 
-    // Overall Score
-    const overallScore = Math.round((somSimulation + blufScore*10 + (isSSR ? 10 : 0)) / 2.2);
+    // --- 4. Sistema de Puntuación Kiev GEO Master (The Gold Standard) ---
+    // Pilar Técnico (0-100)
+    let techScoreValue = 0;
+    if (hasRobots) techScoreValue += 10;
+    if (hasLlms) techScoreValue += 10;
+    if (!isBotBlocked) techScoreValue += 20;
+    if (schemasFound > 0) techScoreValue += 20;
+    if (hasGoodHierarchy) techScoreValue += 20;
+    if (isSSR) techScoreValue += 20;
+
+    // Pilar de Contenido (0-100)
+    let contentScoreValue = (blufScore * 4) + // Max 40
+                           (Math.min(statsCount, 10) * 2) + // Max 20
+                           (isScannable ? 20 : 0) + // Max 20
+                           (hasAuthor ? 20 : 0); // Max 20
+
+    // Pilar GEO/IA (0-100)
+    let geoScoreValue = somSimulation;
+
+    // Fórmula Final Ponderada (Tech: 30%, Content: 30%, Geo: 40%)
+    const finalScore = Math.round(
+      (techScoreValue * 0.3) + 
+      (contentScoreValue * 0.3) + 
+      (geoScoreValue * 0.4)
+    );
 
     return {
       success: true,
-      overallScore: Math.min(100, Math.max(0, overallScore)), // Clamp 0-100
+      overallScore: Math.min(100, Math.max(0, finalScore)), 
       technical: {
         robotsTxt: hasRobots,
         llmsTxt: hasLlms,
