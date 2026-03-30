@@ -11,7 +11,7 @@
   --warning: #f59e0b;
 }
 
-.main {
+.container {
   min-height: 100vh;
   padding: 2rem;
   background-color: var(--background);
@@ -20,50 +20,51 @@
     radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.1), transparent 50%);
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.container {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
-.header {
+.hero {
   text-align: center;
   margin-bottom: 4rem;
-  padding-top: 2rem;
+  padding-top: 4rem;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.header h1 {
-  font-size: 3.5rem;
+.title {
+  font-size: 4rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin-bottom: 1rem;
-  background: linear-gradient(to right, #fff, #94a3b8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  margin-bottom: 1.5rem;
+  color: white;
 }
 
-.header p {
+.subtitle {
   color: var(--text-muted);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  margin-bottom: 3rem;
 }
 
-/* Glassmorphism */
-.glass {
+/* Glassmorphism Forms */
+.searchContainer {
   background: var(--surface);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--surface-border);
   border-radius: 24px;
-}
-
-.searchCard {
   padding: 0.75rem;
   display: flex;
   gap: 0.5rem;
   margin-bottom: 3rem;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  transition: border-color 0.3s ease;
+}
+
+.searchContainer:focus-within {
+  border-color: rgba(59, 130, 246, 0.5);
 }
 
 .input {
@@ -74,6 +75,7 @@
   color: white;
   font-size: 1.1rem;
   outline: none;
+  min-width: 0;
 }
 
 .button {
@@ -82,84 +84,38 @@
   border: none;
   padding: 0.8rem 2rem;
   border-radius: 16px;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
 }
 
 .button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.5);
+  filter: brightness(1.1);
 }
 
 .button:disabled {
-  opacity: 0.6;
-  cursor:not-allowed;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-/* Results / Dashboard */
-.resultsContainer {
-  animation: fadeIn 0.6s ease-out;
+/* Report View Wrapper */
+.reportContainer {
+  margin-top: 4rem;
+  animation: slideUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(40px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.scoreSection {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 5rem;
-  text-align: center;
-}
-
-.mainScoreWrapper {
-  position: relative;
-  width: 200px;
-  height: 200px;
-  margin-bottom: 2rem;
-}
-
-.scoreCircle {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-
-.scoreCircleBg {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.05);
-  stroke-width: 8;
-}
-
-.scoreCircleValue {
-  fill: none;
-  stroke: url(#scoreGradient);
-  stroke-width: 8;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 1.5s ease-out;
-}
-
-.scoreNumber {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 3.5rem;
-  font-weight: 800;
-  color: white;
-  text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
-}
-
+/* Re-using styles for AnalysisReport items that are actually in page.module.css */
 .reportGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -168,14 +124,17 @@
 }
 
 .card {
-  padding: 1.5rem;
+  padding: 1.8rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.2rem;
   border: 1px solid var(--surface-border);
-  border-radius: 24px;
-  overflow: visible; /* Importante para los tooltips */
+  border-radius: 28px;
+  overflow: visible;
   height: fit-content;
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .cardHeader {
@@ -183,31 +142,30 @@
   align-items: center;
   gap: 0.75rem;
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 700;
   border-bottom: 1px solid var(--surface-border);
-  padding-bottom: 1rem;
+  padding-bottom: 1.2rem;
   justify-content: space-between;
 }
 
 .cardHeaderIconGroup {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.8rem;
   width: 100%;
 }
 
 .cardContent {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  opacity: 1;
+  gap: 1rem;
 }
 
 .cardContentExpanded {
   opacity: 1;
 }
 
-/* Tooltip System */
+/* Tooltip System Classes */
 .tooltipContainer {
   position: relative;
   display: inline-flex;
@@ -217,8 +175,8 @@
 }
 
 .infoIcon {
-  color: #64748b;
-  transition: color 0.2s;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
 }
 
 .tooltipContainer:hover .infoIcon {
@@ -227,37 +185,37 @@
 
 .tooltipText {
   visibility: hidden;
-  width: 260px;
-  background-color: #1e293b;
-  color: #cbd5e1;
+  width: 280px;
+  background-color: #0f172a;
+  color: #f1f5f9;
   text-align: left;
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 16px;
+  padding: 1.2rem;
   position: absolute;
-  z-index: 100;
+  z-index: 1000;
   bottom: 140%;
   left: 50%;
   transform: translateX(-50%);
   opacity: 0;
-  transition: opacity 0.3s, visibility 0.3s;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 0.8rem;
-  line-height: 1.4;
+  font-size: 0.85rem;
+  line-height: 1.5;
   font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
 }
 
 .tooltipText strong {
   color: var(--primary);
   display: block;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
 }
 
 .tooltipContainer:hover .tooltipText {
   visibility: visible;
   opacity: 1;
+  transform: translateX(-50%) translateY(-10px);
 }
 
 .tooltipText::after {
@@ -265,35 +223,34 @@
   position: absolute;
   top: 100%;
   left: 50%;
-  margin-left: -5px;
-  border-width: 5px;
+  margin-left: -8px;
+  border-width: 8px;
   border-style: solid;
-  border-color: #1e293b transparent transparent transparent;
+  border-color: #0f172a transparent transparent transparent;
 }
 
 .metricRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.4rem 0;
+  padding: 0.6rem 0;
 }
 
 .metricLabel {
-  color: #94a3b8;
-  font-size: 0.9rem;
-}
-
-.metricValue {
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  color: var(--text-muted);
   font-size: 0.95rem;
 }
 
+.metricValue {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .statusIcon {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .statusGood { color: var(--accent); }
@@ -301,38 +258,45 @@
 .statusWarn { color: var(--warning); }
 
 .actionPlanCard {
-  background: linear-gradient(145deg, rgba(59, 130, 246, 0.03), rgba(139, 92, 246, 0.03));
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.05));
   border: 1px solid rgba(139, 92, 246, 0.2);
+  margin-bottom: 4rem;
 }
 
 .actionStep {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 12px;
-  padding: 1.2rem;
-  margin-bottom: 1rem;
-  border-left: 4px solid var(--primary);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.2rem;
+  border-left: 5px solid var(--primary);
+  transition: transform 0.2s ease;
+}
+
+.actionStep:hover {
+  transform: translateX(5px);
 }
 
 .actionStepTitle {
-  font-weight: 700;
+  font-weight: 800;
   color: white;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .actionStepDesc {
-  color: #94a3b8;
-  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
   line-height: 1.6;
 }
 
+/* Radar & Mini Charts */
 .extraMetricsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 2rem;
-  margin-top: 2rem;
+  margin-top: 3rem;
   width: 100%;
 }
 
@@ -340,16 +304,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem;
-  min-height: 480px;
+  padding: 2.5rem;
+  min-height: 520px;
   justify-content: center;
+  text-align: center;
 }
 
 .intentCard {
-  padding: 2rem;
+  padding: 2.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.8rem;
 }
 
 .barRow {
@@ -359,45 +324,47 @@
 .barLabel {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.6rem;
-  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
   color: #cbd5e1;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .barBg {
-  height: 8px;
+  height: 10px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
 .barFill {
   height: 100%;
-  transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 10px;
+  transition: width 2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .noiseIndicator {
   margin-top: auto;
-  padding: 1.2rem;
-  background: rgba(139, 92, 246, 0.08);
-  border-radius: 16px;
+  padding: 1.5rem;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 20px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  gap: 0.6rem;
+  border: 1px solid rgba(139, 92, 246, 0.2);
 }
 
 .noiseHeader {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  color: #94a3b8;
-  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+  font-weight: 600;
 }
 
 .noiseValue {
-  font-size: 1.8rem;
-  font-weight: 800;
+  font-size: 2.2rem;
+  font-weight: 900;
   background: linear-gradient(to right, #8b5cf6, #d946ef);
   -webkit-background-clip: text;
   background-clip: text;
@@ -405,18 +372,28 @@
 }
 
 .footer {
-  margin-top: 6rem;
-  margin-bottom: 3rem;
+  margin-top: 8rem;
+  padding-bottom: 4rem;
   text-align: center;
   color: #475569;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
 }
 
 .loadingSpinner {
   animation: spin 1s linear infinite;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .title { font-size: 2.8rem; }
+  .searchContainer { flex-direction: column; padding: 1.5rem; border-radius: 30px; }
+  .button { width: 100%; justify-content: center; }
+  .container { padding: 1rem; }
 }
