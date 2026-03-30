@@ -237,11 +237,11 @@ export default function AnalysisReport({ data }) {
         desc: "Tu página es anónima. Añade autores humanos reales con biografías, enlaces a LinkedIn y experiencia demostrada para validar tu prestigio ante la IA."
       });
     }
-    if (data.metrics2026.somSimulation < 70) {
+    if ((data.metrics2026?.somSimulation || 0) < 70) {
       steps.push({
         phase: "Fase 4: Optimización GEO",
         title: "Aumentar Share of Model (SoM)",
-        desc: `El SoM simulado actualmente es del ${data.metrics2026.somSimulation}%. Necesitas menciones de terceros en foros, Reddit, Quora y PR digital para que la nube de IA te recomiende más.`
+        desc: `El SoM simulado actualmente es del ${data.metrics2026?.somSimulation || 0}%. Necesitas menciones de terceros en foros, Reddit, Quora y PR digital para que la nube de IA te recomiende más.`
       });
     }
 
@@ -289,10 +289,10 @@ export default function AnalysisReport({ data }) {
         </p>
 
         <div className={styles.extraMetricsGrid}>
-          <RadarChart scores={data.metrics2026.geoAlignment || {}} />
+          <RadarChart scores={data.metrics2026?.geoAlignment || {}} />
           <IntentBars 
-            intent={data.metrics2026.semanticIntent || { informational: 0, commercial: 0, transactional: 0 }} 
-            signalToNoise={data.metrics2026.signalToNoise || 0} 
+            intent={data.metrics2026?.semanticIntent || { informational: 0, commercial: 0, transactional: 0 }} 
+            signalToNoise={data.metrics2026?.signalToNoise || 0} 
           />
         </div>
       </div>
@@ -407,23 +407,23 @@ export default function AnalysisReport({ data }) {
           <div className={`${styles.cardContent} ${expandedCard === 3 ? styles.cardContentExpanded : ''}`}>
             <MetricRow 
               label="Share of Model (SoM) Simulado" 
-              value={`${data.metrics2026.somSimulation}%`} 
-              status={data.metrics2026.somSimulation > 50 ? "good" : "warn"} 
+              value={`${data.metrics2026?.somSimulation || 0}%`} 
+              status={(data.metrics2026?.somSimulation || 0) > 50 ? "good" : "warn"} 
             />
             <MetricRow 
               label="Probabilidad de Recuperación (RAG)" 
-              value={data.metrics2026.ragProbability} 
-              status={data.metrics2026.ragProbability === "Alta" ? "good" : (data.metrics2026.ragProbability === "Media" ? "warn" : "error")} 
+              value={data.metrics2026?.ragProbability || "Neutral"} 
+              status={data.metrics2026?.ragProbability === "Alta" ? "good" : (data.metrics2026?.ragProbability === "Media" ? "warn" : "error")} 
             />
             <MetricRow 
               label="Sentiment Score de Citación" 
-              value={data.metrics2026.sentiment} 
-              status={data.metrics2026.sentiment.includes("Positivo") ? "good" : "warn"} 
+              value={data.metrics2026?.sentimentScore || "Neutral"} 
+              status={data.metrics2026?.sentimentScore?.includes("Positivo") ? "good" : "warn"} 
             />
             {expandedCard === 3 && (
               <div className={styles.accordionExtraText}>
                 <strong>¿Por qué importa esto en tu sitio?</strong><br/>
-                Para el 2026, lo que importará es el &quot;Share of Model&quot;. Con un SoM de {data.metrics2026.somSimulation}%, y probabilidad de RAG {data.metrics2026.ragProbability}, la IA de Google y ChatGPT te considerarán {data.metrics2026.ragProbability === 'Alta' ? 'una fuente primaria confiable' : 'una fuente secundaria que podría ser omitida'} en sus respuestas generativas directas.
+                Para el 2026, lo que importará es el &quot;Share of Model&quot;. Con un SoM de {data.metrics2026?.somSimulation || 0}%, y probabilidad de RAG {data.metrics2026?.ragProbability || 'Media'}, la IA de Google y ChatGPT te considerarán {data.metrics2026?.ragProbability === 'Alta' ? 'una fuente primaria confiable' : 'una fuente secundaria que podría ser omitida'} en sus respuestas generativas directas.
               </div>
             )}
           </div>
