@@ -11,11 +11,11 @@ import {
   Bot,
   Zap,
   BookOpen,
-  ChevronDown,
   ListChecks,
   Target,
   BarChart3,
-  Waves
+  Waves,
+  Info
 } from 'lucide-react';
 import styles from '../app/page.module.css';
 
@@ -159,14 +159,18 @@ const MetricRow = ({ label, value, status }) => (
   </div>
 );
 
+const Tooltip = ({ text }) => (
+  <div className={styles.tooltipContainer}>
+    <Info size={16} className={styles.infoIcon} />
+    <div className={styles.tooltipText}>
+      <strong>Importancia:</strong><br/>
+      {text}
+    </div>
+  </div>
+);
+
 export default function AnalysisReport({ data }) {
-  const [expandedCard, setExpandedCard] = useState(null);
-
   if (!data) return null;
-
-  const toggleCard = (index) => {
-    setExpandedCard(expandedCard === index ? null : index);
-  };
 
   // SVG Donut calculation
   const radius = 70;
@@ -300,18 +304,15 @@ export default function AnalysisReport({ data }) {
 
       <div className={styles.reportGrid}>
         {/* Pilar 1: Auditoría Técnica */}
-        <div 
-          className={`${styles.card} ${styles.glass}`} 
-          onClick={() => toggleCard(1)}
-        >
+        <div className={`${styles.card} ${styles.glass}`}>
           <div className={styles.cardHeader}>
             <div className={styles.cardHeaderIconGroup}>
               <Bot color="var(--primary)" />
               Auditoría Técnica (LLM Crawling)
+              <Tooltip text={`La auditoría técnica para IA no trata sobre velocidad, sino sobre accesibilidad de datos brutos. Si tu sitio carece de schemas o renderiza por cliente, los bots de OpenAI y Google no entenderán correctamente de qué trata tu web.`} />
             </div>
-            <ChevronDown className={`${styles.chevronIcon} ${expandedCard === 1 ? styles.chevronExpanded : ''}`} />
           </div>
-          <div className={`${styles.cardContent} ${expandedCard === 1 ? styles.cardContentExpanded : ''}`}>
+          <div className={`${styles.cardContent} ${styles.cardContentExpanded}`}>
             <MetricRow 
               label="Archivo robots.txt" 
               value={data.technical.robotsTxt ? "Detectado (OK)" : "Inaccesible"} 
@@ -342,28 +343,19 @@ export default function AnalysisReport({ data }) {
               value={data.technical.isSSR ? "Sí" : "CSR Detectado"} 
               status={data.technical.isSSR ? "good" : "warn"} 
             />
-            {expandedCard === 1 && (
-              <div className={styles.accordionExtraText}>
-                <strong>¿Por qué importa esto en tu sitio?</strong><br/>
-                La auditoría técnica para IA no trata sobre velocidad, sino sobre accesibilidad de datos brutos. Si tu sitio carece de <em>schemas</em> ({data.technical.schemasFound} detectados) o renderiza por cliente ({data.technical.isSSR ? 'excelente que uses SSR' : 'cuidado, usas CSR'}), los bots de OpenAI y Google no entenderán correctamente de qué trata tu web o directamente recibirán una página en blanco. 
-              </div>
-            )}
           </div>
         </div>
 
         {/* Pilar 2: Estructura de Contenido */}
-        <div 
-          className={`${styles.card} ${styles.glass}`}
-          onClick={() => toggleCard(2)}
-        >
+        <div className={`${styles.card} ${styles.glass}`}>
           <div className={styles.cardHeader}>
             <div className={styles.cardHeaderIconGroup}>
               <FileText color="var(--secondary)" />
               Estructura de Contenido (On-Page)
+              <Tooltip text={`Los motores generativos necesitan extraer bloques de texto cortos y verificables. El contenido persuasivo comercial debe reemplazarse por respuestas directas bajo tus subtítulos y contener citas estadísticas que le den confianza al LLM.`} />
             </div>
-            <ChevronDown className={`${styles.chevronIcon} ${expandedCard === 2 ? styles.chevronExpanded : ''}`} />
           </div>
-          <div className={`${styles.cardContent} ${expandedCard === 2 ? styles.cardContentExpanded : ''}`}>
+          <div className={`${styles.cardContent} ${styles.cardContentExpanded}`}>
             <MetricRow 
               label="Estructura Answer-First (BLUF)" 
               value={data.content.blufScore + "/10"} 
@@ -384,28 +376,19 @@ export default function AnalysisReport({ data }) {
               value={data.content.hasAuthor ? "Detectada" : "Anónima"} 
               status={data.content.hasAuthor ? "good" : "warn"} 
             />
-            {expandedCard === 2 && (
-              <div className={styles.accordionExtraText}>
-                <strong>¿Por qué importa esto en tu sitio?</strong><br/>
-                Los motores generativos necesitan extraer bloques de texto cortos y verificables. Tienes un score BLUF de {data.content.blufScore}/10 y {data.content.statsCount} datos duros. Para dominar AEO, el contenido &quot;paja&quot; comercial debe reemplazarse por respuestas directas bajo tus subtítulos y contener citas estadísticas que le den confianza al LLM para elegirte como fuente.
-              </div>
-            )}
           </div>
         </div>
 
         {/* Pilar 3: Métricas 2026 */}
-        <div 
-          className={`${styles.card} ${styles.glass}`}
-          onClick={() => toggleCard(3)}
-        >
+        <div className={`${styles.card} ${styles.glass}`}>
           <div className={styles.cardHeader}>
             <div className={styles.cardHeaderIconGroup}>
               <Activity color="var(--accent)" />
               Métricas GEO / AEO 2026
+              <Tooltip text={`Para el 2026, lo que importará es el "Share of Model". La IA te considerará una fuente primaria confiable o una fuente secundaria omitible basándose en tu probabilidad de recuperación RAG.`} />
             </div>
-            <ChevronDown className={`${styles.chevronIcon} ${expandedCard === 3 ? styles.chevronExpanded : ''}`} />
           </div>
-          <div className={`${styles.cardContent} ${expandedCard === 3 ? styles.cardContentExpanded : ''}`}>
+          <div className={`${styles.cardContent} ${styles.cardContentExpanded}`}>
             <MetricRow 
               label="Share of Model (SoM) Simulado" 
               value={`${data.metrics2026?.somSimulation || 0}%`} 
@@ -421,12 +404,6 @@ export default function AnalysisReport({ data }) {
               value={data.metrics2026?.sentimentScore || "Neutral"} 
               status={data.metrics2026?.sentimentScore?.includes("Positivo") ? "good" : "warn"} 
             />
-            {expandedCard === 3 && (
-              <div className={styles.accordionExtraText}>
-                <strong>¿Por qué importa esto en tu sitio?</strong><br/>
-                Para el 2026, lo que importará es el &quot;Share of Model&quot;. Con un SoM de {data.metrics2026?.somSimulation || 0}%, y probabilidad de RAG {data.metrics2026?.ragProbability || 'Media'}, la IA de Google y ChatGPT te considerarán {data.metrics2026?.ragProbability === 'Alta' ? 'una fuente primaria confiable' : 'una fuente secundaria que podría ser omitida'} en sus respuestas generativas directas.
-              </div>
-            )}
           </div>
         </div>
 
