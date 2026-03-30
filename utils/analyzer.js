@@ -19,13 +19,15 @@ async function checkFileExists(baseUrl, path) {
 
 // Main analyzer function
 export async function analyzeWebsite(url) {
+  const startTime = Date.now();
   try {
     const response = await fetch(url);
+    const latency = Date.now() - startTime; // Medición de latencia real
+    
     if (!response.ok) throw new Error("No se pudo acceder a la URL");
     
     const html = await response.text();
     const $ = cheerio.load(html);
-    const latency = 150 + Math.random() * 200; // Simulación de latencia
 
     // --- 1. Auditoría Técnica (Heurística) ---
     const hasRobots = await checkFileExists(url, "/robots.txt");
@@ -54,7 +56,7 @@ export async function analyzeWebsite(url) {
     if (aiClient) {
       try {
         const prompt = `Analiza semánticamente el siguiente extracto de texto de una página web, y califica su optimización para Answer Engine Optimization (AEO) y RAG.
-Evalúa basándote en:
+Evalúa de forma OBJETIVA Y DETERMINÍSTICA basándote en:
 1. Formato "Answer-First" o BLUF (qué tan directo responde preguntas).
 2. Tono y Autoridad ("Wiki-voice", falta de sesgos subjetivos).
 3. Densidad de hechos duros (números, estadísticas, entidades).
@@ -81,7 +83,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
 }
 
 IMPORTANTE: Los valores de score deben ser realistas. No regales 100 si no es perfecto.
-Puntuaciones por debajo de 50 son normales para sitios no optimizados para IA. Todo lo derivado de bluf_score debe ser base 10. Todo lo demás base 100.
+Análisis DETERMINÍSTICO: para el mismo texto de entrada, produce siempre el mismo puntaje exacto.
 
 Texto a analizar:
 """
@@ -92,7 +94,8 @@ ${cleanText}
           model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
-            responseMimeType: "application/json"
+            responseMimeType: "application/json",
+            temperature: 0 // Forzando respuestas determinísticas
           }
         });
 
@@ -132,10 +135,10 @@ ${cleanText}
     if (isSSR) techScoreValue += 20;
 
     // Pilar de Contenido (0-100)
-    let contentScoreValue = (blufScore * 4) + // Max 40
-                           (Math.min(statsCount, 10) * 2) + // Max 20
-                           (isScannable ? 20 : 0) + // Max 20
-                           (hasAuthor ? 20 : 0); // Max 20
+    let contentScoreValue = (blufScore * 4) + 
+                           (Math.min(statsCount, 10) * 2) + 
+                           (isScannable ? 20 : 0) + 
+                           (hasAuthor ? 20 : 0);
 
     // Pilar GEO/IA (0-100)
     let geoScoreValue = somSimulation;
