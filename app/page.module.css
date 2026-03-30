@@ -48,7 +48,6 @@
   margin-bottom: 3rem;
 }
 
-/* Glassmorphism Forms */
 .searchContainer {
   background: var(--surface);
   backdrop-filter: blur(12px);
@@ -60,11 +59,6 @@
   gap: 0.5rem;
   margin-bottom: 3rem;
   box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-  transition: border-color 0.3s ease;
-}
-
-.searchContainer:focus-within {
-  border-color: rgba(59, 130, 246, 0.5);
 }
 
 .input {
@@ -89,25 +83,13 @@
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease;
   white-space: nowrap;
 }
 
-.button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.5);
-  filter: brightness(1.1);
-}
-
-.button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Report View Wrapper */
 .reportContainer {
   margin-top: 4rem;
-  animation: slideUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideUp 0.8s ease-out;
 }
 
 @keyframes slideUp {
@@ -115,7 +97,63 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Re-using styles for AnalysisReport items that are actually in page.module.css */
+/* Overall Score Card */
+.overallScore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem;
+  margin-bottom: 3rem;
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--surface-border);
+  border-radius: 32px;
+}
+
+.donutWrapper {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin-bottom: 2rem;
+}
+
+.donutSvg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.donutBackground {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 10;
+}
+
+.donutProgress {
+  fill: none;
+  stroke: url(#scoreGradient);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.5s ease-out;
+}
+
+.donutText {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4.5rem;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+}
+
+/* Grid & Cards */
 .reportGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -134,7 +172,6 @@
   height: fit-content;
   background: var(--surface);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .cardHeader {
@@ -165,7 +202,7 @@
   opacity: 1;
 }
 
-/* Tooltip System Classes */
+/* Tooltips */
 .tooltipContainer {
   position: relative;
   display: inline-flex;
@@ -197,38 +234,20 @@
   left: 50%;
   transform: translateX(-50%);
   opacity: 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.85rem;
   line-height: 1.5;
-  font-weight: 400;
-}
-
-.tooltipText strong {
-  color: var(--primary);
-  display: block;
-  margin-bottom: 0.4rem;
-  font-size: 0.9rem;
 }
 
 .tooltipContainer:hover .tooltipText {
   visibility: visible;
   opacity: 1;
-  transform: translateX(-50%) translateY(-10px);
+  transform: translateX(-50%) translateY(-5px);
 }
 
-.tooltipText::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  margin-left: -8px;
-  border-width: 8px;
-  border-style: solid;
-  border-color: #0f172a transparent transparent transparent;
-}
-
+/* Metrics rows */
 .metricRow {
   display: flex;
   justify-content: space-between;
@@ -248,15 +267,12 @@
   gap: 0.6rem;
 }
 
-.statusIcon {
-  width: 1.1rem;
-  height: 1.1rem;
-}
-
+.statusIcon { width: 1.1rem; height: 1.1rem; }
 .statusGood { color: var(--accent); }
 .statusError { color: var(--danger); }
 .statusWarn { color: var(--warning); }
 
+/* Action Plan */
 .actionPlanCard {
   background: linear-gradient(145deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.05));
   border: 1px solid rgba(139, 92, 246, 0.2);
@@ -269,11 +285,6 @@
   padding: 1.5rem;
   margin-bottom: 1.2rem;
   border-left: 5px solid var(--primary);
-  transition: transform 0.2s ease;
-}
-
-.actionStep:hover {
-  transform: translateX(5px);
 }
 
 .actionStepTitle {
@@ -291,7 +302,7 @@
   line-height: 1.6;
 }
 
-/* Radar & Mini Charts */
+/* Extra charts */
 .extraMetricsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
@@ -305,9 +316,6 @@
   flex-direction: column;
   align-items: center;
   padding: 2.5rem;
-  min-height: 520px;
-  justify-content: center;
-  text-align: center;
 }
 
 .intentCard {
@@ -317,10 +325,7 @@
   gap: 1.8rem;
 }
 
-.barRow {
-  width: 100%;
-}
-
+.barRow { width: 100%; }
 .barLabel {
   display: flex;
   justify-content: space-between;
@@ -337,11 +342,7 @@
   overflow: hidden;
 }
 
-.barFill {
-  height: 100%;
-  border-radius: 10px;
-  transition: width 2s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.barFill { height: 100%; transition: width 2s ease-out; }
 
 .noiseIndicator {
   margin-top: auto;
@@ -359,7 +360,6 @@
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.15em;
-  font-weight: 600;
 }
 
 .noiseValue {
@@ -377,7 +377,6 @@
   text-align: center;
   color: #475569;
   font-size: 0.9rem;
-  letter-spacing: 0.02em;
 }
 
 .loadingSpinner {
@@ -389,11 +388,4 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-@media (max-width: 768px) {
-  .title { font-size: 2.8rem; }
-  .searchContainer { flex-direction: column; padding: 1.5rem; border-radius: 30px; }
-  .button { width: 100%; justify-content: center; }
-  .container { padding: 1rem; }
 }
