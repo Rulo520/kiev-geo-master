@@ -12,9 +12,135 @@ import {
   Zap,
   BookOpen,
   ChevronDown,
-  ListChecks
+  ListChecks,
+  Target,
+  BarChart3,
+  Waves
 } from 'lucide-react';
 import styles from '../app/page.module.css';
+
+const RadarChart = ({ scores }) => {
+  const size = 220;
+  const center = size / 2;
+  const maxRadius = 70;
+  const axes = [
+    { label: 'Directness', key: 'directness' },
+    { label: 'Facts', key: 'fact_density' },
+    { label: 'Structure', key: 'structural_clarity' },
+    { label: 'Authority', key: 'authority' },
+    { label: 'Tech', key: 'technical_health' }
+  ];
+
+  const points = axes.map((axis, i) => {
+    const angle = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
+    const value = scores[axis.key] || 0;
+    const r = (value / 100) * maxRadius;
+    const x = center + r * Math.cos(angle);
+    const y = center + r * Math.sin(angle);
+    return { x, y, label: axis.label, angle };
+  });
+
+  const polygonPoints = points.map(p => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <div className={`${styles.card} ${styles.glass} ${styles.radarCard}`}>
+      <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <Target size={14} /> Alineación GEO 2026
+      </h3>
+      <svg width={size} height={size} style={{ overflow: 'visible' }}>
+        {[25, 50, 75, 100].map(val => (
+          <polygon
+            key={val}
+            points={axes.map((_, i) => {
+              const angle = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
+              const r = (val / 100) * maxRadius;
+              return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+            }).join(' ')}
+            fill="none"
+            stroke="rgba(255,255,255,0.05)"
+          />
+        ))}
+        {axes.map((_, i) => {
+          const angle = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
+          return (
+            <line
+              key={i}
+              x1={center}
+              y1={center}
+              x2={center + maxRadius * Math.cos(angle)}
+              y2={center + maxRadius * Math.sin(angle)}
+              stroke="rgba(255,255,255,0.05)"
+            />
+          );
+        })}
+        <polygon
+          points={polygonPoints}
+          fill="rgba(139, 92, 246, 0.2)"
+          stroke="#8b5cf6"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        {points.map((p, i) => (
+          <text
+            key={i}
+            x={center + (maxRadius + 22) * Math.cos(p.angle)}
+            y={center + (maxRadius + 15) * Math.sin(p.angle)}
+            fill="#94a3b8"
+            fontSize="9"
+            fontWeight="500"
+            textAnchor="middle"
+          >
+            {p.label}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+};
+
+const IntentBars = ({ intent, signalToNoise }) => {
+  const bars = [
+    { label: 'Informacional', value: intent.informational, color: '#3b82f6', icon: <BookOpen size={14} /> },
+    { label: 'Comercial', value: intent.commercial, color: '#8b5cf6', icon: <Search size={14} /> },
+    { label: 'Transaccional', value: intent.transactional, color: '#f59e0b', icon: <Zap size={14} /> }
+  ];
+
+  return (
+    <div className={`${styles.card} ${styles.glass} ${styles.intentCard}`}>
+      <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <BarChart3 size={14} /> Pulso Semántico
+      </h3>
+      {bars.map(bar => (
+        <div key={bar.label} className={styles.barRow}>
+          <div className={styles.barLabel}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              {bar.icon} {bar.label}
+            </span>
+            <span>{bar.value}%</span>
+          </div>
+          <div className={styles.barBg}>
+            <div 
+              className={styles.barFill} 
+              style={{ width: `${bar.value}%`, backgroundColor: bar.color }}
+            />
+          </div>
+        </div>
+      ))}
+      
+      <div className={styles.noiseIndicator}>
+        <div className={styles.noiseHeader}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Waves size={14} /> Señal vs Ruido (LLM Efficiency)
+          </span>
+        </div>
+        <div className={styles.noiseValue}>{signalToNoise}%</div>
+        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+          Eficiencia del contenido para ser extraído por RAG.
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const StatusIcon = ({ status }) => {
   if (status === 'good') return <CheckCircle2 className={`${styles.statusIcon} ${styles.statusGood}`} />;
@@ -161,6 +287,14 @@ export default function AnalysisReport({ data }) {
         <p style={{ color: '#94a3b8', marginTop: '0.5rem', maxWidth: '600px' }}>
           Basado en auditoría &quot;Answer-First&quot;, estructuración para LLMs y Performance Técnica.
         </p>
+
+        <div className={styles.extraMetricsGrid}>
+          <RadarChart scores={data.metrics2026.geoAlignment || {}} />
+          <IntentBars 
+            intent={data.metrics2026.semanticIntent || { informational: 0, commercial: 0, transactional: 0 }} 
+            signalToNoise={data.metrics2026.signalToNoise || 0} 
+          />
+        </div>
       </div>
 
       <div className={styles.reportGrid}>

@@ -119,7 +119,20 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
   "som_score": numero_del_0_al_100,
   "rag_probability": "Alta" | "Media" | "Baja",
   "sentiment_analysis": "Positivo (Altamente citable)" | "Neutral" | "Negativo (Desactualizado o subjetivo)",
-  "bluf_score": numero_0_al_10
+  "bluf_score": numero_0_al_10,
+  "geo_alignment": {
+    "directness": 0_100,
+    "fact_density": 0_100,
+    "structural_clarity": 0_100,
+    "authority": 0_100,
+    "technical_health": 0_100
+  },
+  "semantic_intent": {
+    "informational": 0_100,
+    "commercial": 0_100,
+    "transactional": 0_100
+  },
+  "signal_to_noise": 0_100
 }
 
 Texto a analizar:
@@ -185,9 +198,22 @@ ${cleanText}
         hasAuthor
       },
       metrics2026: {
-        somSimulation,
-        ragProbability,
-        sentiment
+        somSimulation: aiResult ? (aiResult.som_score || somSimulation) : somSimulation,
+        ragProbability: aiResult ? (aiResult.rag_probability || ragProbability) : ragProbability,
+        sentimentScore: aiResult ? (aiResult.sentiment_analysis || sentiment) : sentiment,
+        geoAlignment: (aiResult && aiResult.geo_alignment) ? aiResult.geo_alignment : {
+          directness: blufScore * 10,
+          fact_density: Math.min(100, statsCount * 10),
+          structural_clarity: hasGoodHierarchy ? 90 : 40,
+          authority: hasAuthor ? 80 : 30,
+          technical_health: isSSR ? 95 : 50
+        },
+        semanticIntent: (aiResult && aiResult.semantic_intent) ? aiResult.semantic_intent : {
+          informational: 40,
+          commercial: 30,
+          transactional: 30
+        },
+        signalToNoise: (aiResult && aiResult.signal_to_noise) !== undefined ? aiResult.signal_to_noise : (cleanText.length > 500 ? 80 : 40)
       }
     };
 
