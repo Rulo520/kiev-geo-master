@@ -1,8 +1,8 @@
 import * as cheerio from "cheerio";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// Adiós a la dependencia del SDK experimental. Usamos fetch nativo para mayor control.
 
-// El cliente de IA se inicializará dinámicamente dentro de la función para mayor robustez en Vercel
-let aiClientInstance = null;
+// El cliente de IA ya no es necesario como objeto global
+let dummyAIInstance = null;
 
 // Helper function to check if a valid file exists on the server
 async function checkFileExists(baseUrl, path, timeout = 2500) {
@@ -75,13 +75,9 @@ export async function analyzeWebsite(url) {
     let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4500);
     
     const apiKey = process.env.GEMINI_API_KEY;
-    console.log("[DASHBOARD] ¿API Key detectada en servidor?:", !!apiKey);
+    console.log("[DASHBOARD] ¿API Key detectada?:", !!apiKey);
 
-    if (apiKey && !aiClientInstance) {
-      aiClientInstance = new GoogleGenerativeAI(apiKey);
-    }
-    
-    if (aiClientInstance) {
+    if (apiKey) {
       try {
         const prompt = `AUDITORÍA PROFESIONAL DE SEO GENERATIVO (GEO) - MODO HIPER-CRÍTICO.
 Analiza semánticamente el extracto web y califica su optimización para Answer Engine Optimization (AEO) y RAG.
@@ -126,37 +122,23 @@ Texto:
 ${cleanText}
 """`;
 
-        const model = aiClientInstance.getGenerativeModel({ 
-          model: 'gemini-1.5-flash',
-          generationConfig: {
-            temperature: 0.1
-          }
-        }, { apiVersion: 'v1' });
-
-        const aiPromise = model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        
+        const aiPromise = fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1 }
+          })
         });
 
-        // Carrera de promesas: 6 segundos o Gemini responde.
-        // Esto garantiza que el servidor responda antes de los 10s de Vercel.
+        // Carrera de promesas: 15 segundos o Gemini responde.
         const responseAI = await Promise.race([
           aiPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 15000))
         ]);
 
-        if (!responseAI) {
-          throw new Error("La IA no devolvió una respuesta.");
-        }
-
-        // El nuevo SDK @google/genai puede devolver el texto directamente o en candidatos
-        let rawText = responseAI.text || "";
-        if (!rawText && responseAI.candidates?.[0]?.content?.parts?.[0]?.text) {
-          rawText = responseAI.candidates[0].content.parts[0].text;
-        }
-
-        if (!rawText) throw new Error("No se pudo extraer texto de la respuesta de IA.");
-
-        // Limpieza de Markdown en caso de que Gemini devuelva ```json
         if (rawText.includes('```json')) {
           rawText = rawText.split('```json')[1].split('```')[0].trim();
         } else if (rawText.includes('```')) {
