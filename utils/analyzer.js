@@ -70,6 +70,7 @@ export async function analyzeWebsite(url) {
     let ragProbability = "Baja";
     let sentiment = "Neutral";
     let aiResult = null;
+    let aiError = null;
     let blufScore = blufScoreBase;
     let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4500);
     
@@ -170,6 +171,7 @@ ${cleanText}
         
       } catch (err) {
         console.error("Error crítico en Gemini:", err);
+        aiError = err.message || "Error desconocido en el servicio de IA.";
         // Fallback dinámico si falla la IA pero tenemos datos técnicos
         somSimulation = 30 + (schemasFound > 0 ? 15 : 0) + (hasGoodHierarchy ? 10 : 0);
       }
@@ -214,6 +216,7 @@ ${cleanText}
     return {
       success: true,
       isAI: !!aiResult,
+      aiError: aiError,
       overallScore: Math.min(100, Math.max(0, finalScore)), 
       technical: {
         robotsTxt: hasRobots,

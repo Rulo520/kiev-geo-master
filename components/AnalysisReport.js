@@ -190,10 +190,28 @@ export default function AnalysisReport({ data }) {
   if (!data) return null;
   
   // Componente de Badge de Transparencia
-  const AuditModeBadge = ({ isAI }) => (
-    <div className={`${styles.auditBadge} ${isAI ? styles.badgeAI : styles.badgeHeuristic}`}>
-      {isAI ? <Bot size={14} /> : <Activity size={14} />}
-      {isAI ? "Auditoría IA (Gemini 2.5)" : "Análisis Técnico (Modo Heurístico)"}
+  const AuditModeBadge = ({ isAI, aiError }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div className={`${styles.auditBadge} ${isAI ? styles.badgeAI : styles.badgeHeuristic}`}>
+        {isAI ? <Bot size={14} /> : <Activity size={14} />}
+        {isAI ? "Auditoría IA (Gemini 2.5)" : "Análisis Técnico (Modo Heurístico)"}
+      </div>
+      {!isAI && aiError && (
+        <div style={{ 
+          color: '#f87171', 
+          fontSize: '0.7rem', 
+          marginTop: '-1.2rem', 
+          marginBottom: '1.5rem', 
+          opacity: 0.9, 
+          textTransform: 'none', 
+          maxWidth: '300px', 
+          textAlign: 'center', 
+          lineHeight: '1.4',
+          fontFamily: 'monospace'
+        }}>
+          [{aiError}]
+        </div>
+      )}
     </div>
   );
 
@@ -287,7 +305,7 @@ export default function AnalysisReport({ data }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       <div className={`${styles.glass} ${styles.overallScore}`}>
-        <AuditModeBadge isAI={data.isAI} />
+        <AuditModeBadge isAI={data.isAI} aiError={data.aiError} />
         <div className={styles.donutWrapper}>
           <svg className={styles.donutSvg} viewBox="0 0 160 160">
             <defs>
