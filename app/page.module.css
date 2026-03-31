@@ -305,24 +305,34 @@
 /* Extra charts */
 .extraMetricsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 2rem;
   margin-top: 3rem;
   width: 100%;
+  align-items: stretch;
+}
+
+@media (max-width: 968px) {
+  .extraMetricsGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .radarCard {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2.5rem;
+  padding: 3rem;
+  min-height: 540px;
+  justify-content: center;
 }
 
 .intentCard {
-  padding: 2.5rem;
+  padding: 3rem;
   display: flex;
   flex-direction: column;
   gap: 1.8rem;
+  min-height: 540px;
 }
 
 .barRow { width: 100%; }
