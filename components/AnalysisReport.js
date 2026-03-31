@@ -170,12 +170,23 @@ const Tooltip = ({ text }) => (
 );
 
 export default function AnalysisReport({ data }) {
-  if (!data) return null;
-
   // SVG Donut calculation
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (data.overallScore / 100) * circumference;
+  
+  const [offset, setOffset] = useState(circumference);
+  
+  if (!data) return null;
+
+  const targetOffset = circumference - (data.overallScore / 100) * circumference;
+
+  useEffect(() => {
+    // Animate to target
+    const timer = setTimeout(() => {
+      setOffset(targetOffset);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [targetOffset]);
 
   // Generate Action Plan dynamic steps based on data
   const generateActionPlan = () => {
@@ -269,6 +280,12 @@ export default function AnalysisReport({ data }) {
       <div className={`${styles.glass} ${styles.overallScore}`}>
         <div className={styles.donutWrapper}>
           <svg className={styles.donutSvg} viewBox="0 0 160 160">
+            <defs>
+              <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="var(--primary)" />
+                <stop offset="100%" stopColor="var(--secondary)" />
+              </linearGradient>
+            </defs>
             <circle 
               className={styles.donutBackground}
               cx="80" 
@@ -281,7 +298,7 @@ export default function AnalysisReport({ data }) {
               cy="80" 
               r={radius} 
               strokeDasharray={circumference}
-              style={{ strokeDashoffset }}
+              style={{ strokeDashoffset: offset }}
             />
           </svg>
           <div className={styles.donutText}>
