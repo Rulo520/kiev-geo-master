@@ -8,9 +8,12 @@ if (process.env.GEMINI_API_KEY) {
 }
 
 // Helper function to check if a valid file exists on the server
-async function checkFileExists(baseUrl, path) {
+async function checkFileExists(baseUrl, path, timeout = 2500) {
   try {
-    const res = await fetch(new URL(path, baseUrl).href, { method: "HEAD" });
+    const res = await fetch(new URL(path, baseUrl).href, { 
+      method: "HEAD", 
+      signal: AbortSignal.timeout(timeout) 
+    });
     return res.ok;
   } catch (error) {
     return false;
@@ -21,7 +24,13 @@ async function checkFileExists(baseUrl, path) {
 export async function analyzeWebsite(url) {
   const startTime = Date.now();
   try {
-    const response = await fetch(url);
+    // Paralelismo: Disparamos las 3 peticiones técnicas al mismo tiempo para ganar 4-6 segundos.
+    const [response, hasRobots, hasLlms] = await Promise.all([
+      fetch(url, { signal: AbortSignal.timeout(8000) }),
+      checkFileExists(url, "/robots.txt"),
+      checkFileExists(url, "/llms.txt")
+    ]);
+
     const latency = Date.now() - startTime; 
     
     if (!response.ok) throw new Error("No se pudo acceder a la URL");
@@ -30,8 +39,6 @@ export async function analyzeWebsite(url) {
     const $ = cheerio.load(html);
 
     // --- 1. Auditoría Técnica (Heurística Estricta) ---
-    const hasRobots = await checkFileExists(url, "/robots.txt");
-    const hasLlms = await checkFileExists(url, "/llms.txt");
     const isBotBlocked = html.includes("GPTBot") || html.includes("CCBot") || html.includes("AdsBot-Google");
     const schemasFound = $('script[type="application/ld+json"]').length;
     
