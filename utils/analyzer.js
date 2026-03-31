@@ -116,14 +116,24 @@ ${cleanText}
 
         const responseAI = await aiClient.models.generateContent({
           model: 'gemini-2.5-flash',
-          contents: prompt,
+          contents: [prompt],
           config: {
             responseMimeType: "application/json",
             temperature: 0
           }
         });
 
-        aiResult = JSON.parse(responseAI.text);
+        if (!responseAI || !responseAI.text) {
+          throw new Error("La IA no devolvió una respuesta válida.");
+        }
+
+        // Limpieza de Markdown en caso de que Gemini devuelva ```json
+        let rawText = responseAI.text;
+        if (rawText.startsWith('```json')) {
+          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        }
+
+        aiResult = JSON.parse(rawText);
         
         somSimulation = aiResult.som_score || 30;
         ragProbability = aiResult.rag_probability || "Media";
@@ -131,8 +141,9 @@ ${cleanText}
         blufScore = aiResult.bluf_score || blufScore;
         
       } catch (err) {
-        console.error("Error analizando con Gemini:", err);
-        somSimulation = 30 + (schemasFound > 0 ? 10 : 0);
+        console.error("Error crítico en Gemini:", err);
+        // Fallback dinámico si falla la IA pero tenemos datos técnicos
+        somSimulation = 30 + (schemasFound > 0 ? 15 : 0) + (hasGoodHierarchy ? 10 : 0);
       }
     } else {
       // Fallback manual (Anti-Inflación)
@@ -196,19 +207,19 @@ ${cleanText}
         somSimulation: aiResult ? (aiResult.som_score || somSimulation) : somSimulation,
         ragProbability: aiResult ? (aiResult.rag_probability || ragProbability) : ragProbability,
         sentimentScore: aiResult ? (aiResult.sentiment_analysis || sentiment) : sentiment,
-        geoAlignment: (aiResult && aiResult.geo_alignment) ? aiResult.geo_alignment : {
+        geoAlignment: aiResult?.geo_alignment || {
           directness: blufScore * 10,
           fact_density: Math.min(100, statsCount * 20),
           structural_clarity: hasGoodHierarchy ? 80 : 30,
           authority: authorFound ? 70 : 20,
           technical_health: techScoreValue
         },
-        semanticIntent: (aiResult && aiResult.semantic_intent) ? aiResult.semantic_intent : {
+        semanticIntent: aiResult?.semantic_intent || {
           informational: 40,
           commercial: 30,
           transactional: 30
         },
-        signalToNoise: (aiResult && aiResult.signal_to_noise) !== undefined ? aiResult.signal_to_noise : (cleanText.length > 800 ? 70 : 30)
+        signalToNoise: aiResult?.signal_to_noise ?? (cleanText.length > 800 ? 70 : 30)
       }
     };
 
