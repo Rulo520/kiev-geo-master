@@ -123,10 +123,10 @@ ${cleanText}
 """`;
 
         const modelsToTry = [
-          'gemini-1.5-flash', 
-          'gemini-1.5-flash-latest', 
-          'gemini-1.5-flash-8b', 
-          'gemini-pro'
+          'gemini-2.0-flash', 
+          'gemini-2.5-flash', 
+          'gemini-flash-latest', 
+          'gemini-pro-latest'
         ];
         
         let dataAI = null;
@@ -134,7 +134,8 @@ ${cleanText}
 
         for (const modelName of modelsToTry) {
           try {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            // Intentamos con v1 que suele ser más estable para estos modelos comerciales
+            const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
             
             const responseAI = await fetch(apiUrl, {
               method: 'POST',
