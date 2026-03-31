@@ -176,17 +176,18 @@ export default function AnalysisReport({ data }) {
   
   const [offset, setOffset] = useState(circumference);
   
-  if (!data) return null;
-
-  const targetOffset = circumference - (data.overallScore / 100) * circumference;
+  const targetOffset = data ? circumference - (data.overallScore / 100) * circumference : circumference;
 
   useEffect(() => {
+    if (!data) return;
     // Animate to target
     const timer = setTimeout(() => {
       setOffset(targetOffset);
     }, 100);
     return () => clearTimeout(timer);
-  }, [targetOffset]);
+  }, [targetOffset, data]);
+
+  if (!data) return null;
 
   // Generate Action Plan dynamic steps based on data
   const generateActionPlan = () => {
