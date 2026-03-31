@@ -122,8 +122,8 @@ ${cleanText}
 """`;
 
         const aiPromise = aiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [prompt],
+          model: 'gemini-1.5-flash',
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
           config: {
             responseMimeType: "application/json",
             temperature: 0
@@ -137,17 +137,27 @@ ${cleanText}
           new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 15000))
         ]);
 
-        if (!responseAI || !responseAI.text) {
-          throw new Error("La IA no devolvió una respuesta válida.");
+        if (!responseAI) {
+          throw new Error("La IA no devolvió una respuesta.");
         }
 
+        // El nuevo SDK @google/genai puede devolver el texto directamente o en candidatos
+        let rawText = responseAI.text || "";
+        if (!rawText && responseAI.candidates?.[0]?.content?.parts?.[0]?.text) {
+          rawText = responseAI.candidates[0].content.parts[0].text;
+        }
+
+        if (!rawText) throw new Error("No se pudo extraer texto de la respuesta de IA.");
+
         // Limpieza de Markdown en caso de que Gemini devuelva ```json
-        let rawText = responseAI.text;
-        if (rawText.startsWith('```json')) {
-          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        if (rawText.includes('```json')) {
+          rawText = rawText.split('```json')[1].split('```')[0].trim();
+        } else if (rawText.includes('```')) {
+          rawText = rawText.split('```')[1].split('```')[0].trim();
         }
 
         aiResult = JSON.parse(rawText);
+        console.log("Auditoría IA Completada con éxito.");
         
         somSimulation = aiResult.som_score || 30;
         ragProbability = aiResult.rag_probability || "Media";
