@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -33,7 +33,7 @@ const RadarChart = ({ scores }) => {
 
   const points = axes.map((axis, i) => {
     const angle = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
-    const value = scores[axis.key] || 0;
+    const value = Number(scores[axis.key]) || 0;
     const r = (value / 100) * maxRadius;
     const x = center + r * Math.cos(angle);
     const y = center + r * Math.sin(angle);
@@ -176,7 +176,7 @@ export default function AnalysisReport({ data }) {
   
   const [offset, setOffset] = useState(circumference);
   
-  const targetOffset = data ? circumference - (data.overallScore / 100) * circumference : circumference;
+  const targetOffset = data ? circumference - ((Number(data.overallScore) || 0) / 100) * circumference : circumference;
 
   useEffect(() => {
     if (!data) return;
