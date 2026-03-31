@@ -129,8 +129,7 @@ ${cleanText}
         const model = aiClientInstance.getGenerativeModel({ 
           model: 'gemini-1.5-flash',
           generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0
+            temperature: 0.1
           }
         }, { apiVersion: 'v1' });
 
