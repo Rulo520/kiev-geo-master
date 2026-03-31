@@ -139,13 +139,22 @@ ${cleanText}
           new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 15000))
         ]);
 
-        if (rawText.includes('```json')) {
-          rawText = rawText.split('```json')[1].split('```')[0].trim();
-        } else if (rawText.includes('```')) {
-          rawText = rawText.split('```')[1].split('```')[0].trim();
-        }
+        const data = await responseAI.json();
+        let text = data.candidates[0].content.parts[0].text;
 
-        aiResult = JSON.parse(rawText);
+        if (text.includes('```json')) {
+          text = text.split('```json')[1].split('```')[0].trim();
+        } else if (text.includes('```')) {
+          text = text.split('```')[1].split('```')[0].trim();
+        }
+        
+        // Refuerzo: si queda algo raro, buscamos el primer { y el último }
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          text = jsonMatch[0];
+        }
+        
+        aiResult = JSON.parse(text);
         console.log("Auditoría IA Completada con éxito.");
         
         somSimulation = aiResult.som_score || 30;
