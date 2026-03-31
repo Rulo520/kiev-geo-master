@@ -1,11 +1,8 @@
 import * as cheerio from "cheerio";
 import { GoogleGenAI } from "@google/genai";
 
-// Inicializar cliente de Gemini (si hay API Key disponible)
-let aiClient = null;
-if (process.env.GEMINI_API_KEY) {
-  aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-}
+// El cliente de IA se inicializará dinámicamente dentro de la función para mayor robustez en Vercel
+let aiClientInstance = null;
 
 // Helper function to check if a valid file exists on the server
 async function checkFileExists(baseUrl, path, timeout = 2500) {
@@ -76,7 +73,14 @@ export async function analyzeWebsite(url) {
     let blufScore = blufScoreBase;
     let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4500);
     
-    if (aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    console.log("[DASHBOARD] ¿API Key detectada en servidor?:", !!apiKey);
+
+    if (apiKey && !aiClientInstance) {
+      aiClientInstance = new GoogleGenAI({ apiKey });
+    }
+    
+    if (aiClientInstance) {
       try {
         const prompt = `AUDITORÍA PROFESIONAL DE SEO GENERATIVO (GEO) - MODO HIPER-CRÍTICO.
 Analiza semánticamente el extracto web y califica su optimización para Answer Engine Optimization (AEO) y RAG.
