@@ -34,7 +34,8 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error("Error analizando la URL. Verifica que sea accesible.");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error analizando la URL. Verifica que sea accesible.");
       }
 
       const data = await res.json();

@@ -74,7 +74,7 @@ export async function analyzeWebsite(url) {
     let sentiment = "Neutral";
     let aiResult = null;
     let blufScore = blufScoreBase;
-    let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4500);
+    let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 3500);
     
     if (aiClient) {
       try {
@@ -121,7 +121,7 @@ Texto:
 ${cleanText}
 """`;
 
-        const responseAI = await aiClient.models.generateContent({
+        const aiPromise = aiClient.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: [prompt],
           config: {
@@ -129,6 +129,13 @@ ${cleanText}
             temperature: 0
           }
         });
+
+        // Carrera de promesas: 6 segundos o Gemini responde.
+        // Esto garantiza que el servidor responda antes de los 10s de Vercel.
+        const responseAI = await Promise.race([
+          aiPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 6000))
+        ]);
 
         if (!responseAI || !responseAI.text) {
           throw new Error("La IA no devolvió una respuesta válida.");
