@@ -74,7 +74,7 @@ export async function analyzeWebsite(url) {
     let sentiment = "Neutral";
     let aiResult = null;
     let blufScore = blufScoreBase;
-    let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 3500);
+    let cleanText = textContent.replace(/\s+/g, ' ').substring(0, 4500);
     
     if (aiClient) {
       try {
@@ -134,7 +134,7 @@ ${cleanText}
         // Esto garantiza que el servidor responda antes de los 10s de Vercel.
         const responseAI = await Promise.race([
           aiPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 6000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 8500))
         ]);
 
         if (!responseAI || !responseAI.text) {
