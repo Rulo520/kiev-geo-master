@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // El cliente de IA se inicializará dinámicamente dentro de la función para mayor robustez en Vercel
 let aiClientInstance = null;
@@ -78,7 +78,7 @@ export async function analyzeWebsite(url) {
     console.log("[DASHBOARD] ¿API Key detectada en servidor?:", !!apiKey);
 
     if (apiKey && !aiClientInstance) {
-      aiClientInstance = new GoogleGenAI({ apiKey });
+      aiClientInstance = new GoogleGenerativeAI(apiKey);
     }
     
     if (aiClientInstance) {
@@ -126,13 +126,16 @@ Texto:
 ${cleanText}
 """`;
 
-        const aiPromise = aiClientInstance.models.generateContent({
+        const model = aiClientInstance.getGenerativeModel({ 
           model: 'gemini-1.5-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
+          generationConfig: {
             responseMimeType: "application/json",
             temperature: 0
           }
+        });
+
+        const aiPromise = model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }]
         });
 
         // Carrera de promesas: 6 segundos o Gemini responde.
