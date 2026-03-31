@@ -134,7 +134,7 @@ ${cleanText}
         // Esto garantiza que el servidor responda antes de los 10s de Vercel.
         const responseAI = await Promise.race([
           aiPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 8500))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 15000))
         ]);
 
         if (!responseAI || !responseAI.text) {

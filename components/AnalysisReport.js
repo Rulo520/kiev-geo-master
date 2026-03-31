@@ -20,9 +20,9 @@ import {
 import styles from '../app/page.module.css';
 
 const RadarChart = ({ scores }) => {
-  const size = 380;
+  const size = 320;
   const center = size / 2;
-  const maxRadius = 120;
+  const maxRadius = 100;
   const axes = [
     { label: 'Directness', key: 'directness' },
     { label: 'Facts', key: 'fact_density' },
@@ -83,8 +83,8 @@ const RadarChart = ({ scores }) => {
         {points.map((p, i) => (
           <text
             key={i}
-            x={center + (maxRadius + 35) * Math.cos(p.angle)}
-            y={center + (maxRadius + 20) * Math.sin(p.angle)}
+            x={center + (maxRadius + 30) * Math.cos(p.angle)}
+            y={center + (maxRadius + 18) * Math.sin(p.angle)}
             fill="#94a3b8"
             fontSize="11"
             fontWeight="700"
