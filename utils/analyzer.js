@@ -130,11 +130,10 @@ ${cleanText}
         ];
         
         let dataAI = null;
-        let lastError = null;
+        let diagnosticLog = [];
 
         for (const modelName of modelsToTry) {
           try {
-            console.log(`[MODEL HUNTER] Intentando con: ${modelName}...`);
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             
             const responseAI = await fetch(apiUrl, {
@@ -150,31 +149,30 @@ ${cleanText}
                   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
                 ]
               }),
-              signal: AbortSignal.timeout(6000) // 6s per attempt
+              signal: AbortSignal.timeout(6000)
             });
 
             if (!responseAI.ok) {
               const errJson = await responseAI.json();
-              console.log(`[MODEL HUNTER] ${modelName} falló con:`, errJson.error?.message || responseAI.status);
+              const errMsg = errJson.error?.message || `Status ${responseAI.status}`;
+              diagnosticLog.push(`${modelName}: ${errMsg}`);
               continue;
             }
 
             const tempData = await responseAI.json();
-            if (tempData.candidates && tempData.candidates.length > 0 && tempData.candidates[0].content?.parts?.[0]?.text) {
+            if (tempData.candidates && tempData.candidates.length > 0) {
               dataAI = tempData;
-              console.log(`[MODEL HUNTER] ¡Éxito con ${modelName}!`);
               break;
             } else {
-              console.log(`[MODEL HUNTER] ${modelName} no devolvió candidatos.`);
+              diagnosticLog.push(`${modelName}: Sin candidatos`);
             }
           } catch (e) {
-            console.log(`[MODEL HUNTER] Excepción en ${modelName}:`, e.message);
-            lastError = e.message;
+            diagnosticLog.push(`${modelName}: Error de red/timeout`);
           }
         }
 
         if (!dataAI) {
-          throw new Error("Ninguno de los modelos de Gemini respondió con éxito a la petición.");
+          throw new Error(`Fallo Total Model Hunter. Reporte: [${diagnosticLog.join(" | ")}]`);
         }
 
         let text = dataAI.candidates[0].content.parts[0].text;
