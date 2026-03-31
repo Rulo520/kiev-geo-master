@@ -126,7 +126,7 @@ Texto:
 ${cleanText}
 """`;
 
-        const aiPromise = aiClient.models.generateContent({
+        const aiPromise = aiClientInstance.models.generateContent({
           model: 'gemini-1.5-flash',
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           config: {
