@@ -122,20 +122,20 @@ Texto:
 ${cleanText}
 """`;
 
+        // Modelos verificados para esta API Key (en orden de preferencia)
         const modelsToTry = [
-          'gemini-2.0-flash', 
-          'gemini-2.5-flash', 
-          'gemini-flash-latest', 
-          'gemini-pro-latest'
+          { name: 'gemini-2.0-flash',      version: 'v1',     timeout: 8000 },
+          { name: 'gemini-2.5-flash',      version: 'v1beta', timeout: 20000 },
+          { name: 'gemini-2.0-flash-lite', version: 'v1',     timeout: 8000 },
+          { name: 'gemini-2.0-flash-001',  version: 'v1',     timeout: 8000 },
         ];
         
         let dataAI = null;
         let diagnosticLog = [];
 
-        for (const modelName of modelsToTry) {
+        for (const { name: modelName, version, timeout } of modelsToTry) {
           try {
-            // Intentamos con v1 que suele ser más estable para estos modelos comerciales
-            const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
             
             const responseAI = await fetch(apiUrl, {
               method: 'POST',
@@ -150,7 +150,7 @@ ${cleanText}
                   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
                 ]
               }),
-              signal: AbortSignal.timeout(6000)
+              signal: AbortSignal.timeout(timeout)
             });
 
             if (!responseAI.ok) {
