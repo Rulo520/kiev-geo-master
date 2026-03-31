@@ -140,7 +140,18 @@ ${cleanText}
         ]);
 
         const data = await responseAI.json();
-        let text = data.candidates[0].content.parts[0].text;
+        
+        // Log de diagnóstico (visible en Vercel Logs)
+        console.log("[GEMINI] Respuesta recibida:", JSON.stringify(data).substring(0, 200));
+
+        if (!data.candidates || data.candidates.length === 0) {
+          // Si no hay candidatos, podría ser un bloqueo de seguridad de Google
+          const safetyReason = data.promptFeedback?.blockReason || "Desconocido (posible bloqueo de seguridad)";
+          throw new Error(`Gemini no generó respuesta. Razón: ${safetyReason}`);
+        }
+
+        let text = data.candidates[0]?.content?.parts?.[0]?.text || "";
+        if (!text) throw new Error("La respuesta de la IA llegó vacía.");
 
         if (text.includes('```json')) {
           text = text.split('```json')[1].split('```')[0].trim();
