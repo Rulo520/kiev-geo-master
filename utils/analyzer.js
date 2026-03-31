@@ -132,7 +132,7 @@ ${cleanText}
             responseMimeType: "application/json",
             temperature: 0
           }
-        });
+        }, { apiVersion: 'v1' });
 
         const aiPromise = model.generateContent({
           contents: [{ role: 'user', parts: [{ text: prompt }] }]
