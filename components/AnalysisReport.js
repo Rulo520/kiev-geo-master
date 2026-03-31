@@ -188,6 +188,14 @@ export default function AnalysisReport({ data }) {
   }, [targetOffset, data]);
 
   if (!data) return null;
+  
+  // Componente de Badge de Transparencia
+  const AuditModeBadge = ({ isAI }) => (
+    <div className={`${styles.auditBadge} ${isAI ? styles.badgeAI : styles.badgeHeuristic}`}>
+      {isAI ? <Bot size={14} /> : <Activity size={14} />}
+      {isAI ? "Auditoría IA (Gemini 2.5)" : "Análisis Técnico (Modo Heurístico)"}
+    </div>
+  );
 
   // Generate Action Plan dynamic steps based on data
   const generateActionPlan = () => {
@@ -279,6 +287,7 @@ export default function AnalysisReport({ data }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       <div className={`${styles.glass} ${styles.overallScore}`}>
+        <AuditModeBadge isAI={data.isAI} />
         <div className={styles.donutWrapper}>
           <svg className={styles.donutSvg} viewBox="0 0 160 160">
             <defs>

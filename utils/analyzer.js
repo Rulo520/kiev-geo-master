@@ -199,6 +199,7 @@ ${cleanText}
 
     return {
       success: true,
+      isAI: !!aiResult,
       overallScore: Math.min(100, Math.max(0, finalScore)), 
       technical: {
         robotsTxt: hasRobots,
