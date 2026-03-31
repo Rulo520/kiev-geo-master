@@ -91,8 +91,8 @@ Benchmarking:
 
 CRITERIOS:
 1. "Answer-First" (BLUF): ¿Responde a "qué es esto" en la primera frase con HECHOS? (Slogans como "comunicación total" penalizan).
-2. Densidad de Datos: ¿Hay métricas, entidades fuertes y claridad técnica o solo "clichés"?
-3. Voz de Autoridad: ¿Hay señales reales de E-E-A-T (autoría, experiencia)?
+2. "Data Density": ¿Hay métricas, entidades fuertes y claridad técnica o solo "clichés"?
+3. "Expert Voice": ¿Hay señales reales de E-E-A-T (autoría, experiencia)?
 
 Devuelve EXCLUSIVAMENTE un JSON válido:
 {
@@ -122,45 +122,62 @@ Texto:
 ${cleanText}
 """`;
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const modelsToTry = [
+          'gemini-1.5-flash', 
+          'gemini-1.5-flash-latest', 
+          'gemini-1.5-flash-8b', 
+          'gemini-pro'
+        ];
         
-        const aiPromise = fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1 },
-            safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-            ]
-          })
-        });
+        let dataAI = null;
+        let lastError = null;
 
-        // Carrera de promesas: 15 segundos o Gemini responde.
-        const responseAI = await Promise.race([
-          aiPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error("IA-TIMEOUT")), 15000))
-        ]);
+        for (const modelName of modelsToTry) {
+          try {
+            console.log(`[MODEL HUNTER] Intentando con: ${modelName}...`);
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            
+            const responseAI = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.1 },
+                safetySettings: [
+                  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                ]
+              }),
+              signal: AbortSignal.timeout(6000) // 6s per attempt
+            });
 
-        const data = await responseAI.json();
-        
-        // Log de diagnóstico completo para el desarrollador
-        console.log("[GEMINI] Payload Completo:", JSON.stringify(data));
+            if (!responseAI.ok) {
+              const errJson = await responseAI.json();
+              console.log(`[MODEL HUNTER] ${modelName} falló con:`, errJson.error?.message || responseAI.status);
+              continue;
+            }
 
-        if (data.error) {
-          throw new Error(`Google API Error: ${data.error.message} (Code: ${data.error.code})`);
+            const tempData = await responseAI.json();
+            if (tempData.candidates && tempData.candidates.length > 0 && tempData.candidates[0].content?.parts?.[0]?.text) {
+              dataAI = tempData;
+              console.log(`[MODEL HUNTER] ¡Éxito con ${modelName}!`);
+              break;
+            } else {
+              console.log(`[MODEL HUNTER] ${modelName} no devolvió candidatos.`);
+            }
+          } catch (e) {
+            console.log(`[MODEL HUNTER] Excepción en ${modelName}:`, e.message);
+            lastError = e.message;
+          }
         }
 
-        if (!data.candidates || data.candidates.length === 0) {
-          // Si no hay candidatos, mostramos el JSON completo para saber por qué (filtros, cuota, etc)
-          throw new Error(`Gemini sin respuesta. Datos recibidos: ${JSON.stringify(data)}`);
+        if (!dataAI) {
+          throw new Error("Ninguno de los modelos de Gemini respondió con éxito a la petición.");
         }
 
-        let text = data.candidates[0]?.content?.parts?.[0]?.text || "";
-        if (!text) throw new Error("La respuesta de la IA llegó vacía.");
+        let text = dataAI.candidates[0].content.parts[0].text;
 
         if (text.includes('```json')) {
           text = text.split('```json')[1].split('```')[0].trim();
