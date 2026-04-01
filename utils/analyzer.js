@@ -124,10 +124,10 @@ ${cleanText}
 
         // Modelos verificados para esta API Key (en orden de preferencia)
         const modelsToTry = [
-          { name: 'gemini-2.0-flash',      version: 'v1',     timeout: 8000 },
-          { name: 'gemini-2.5-flash',      version: 'v1beta', timeout: 20000 },
-          { name: 'gemini-2.0-flash-lite', version: 'v1',     timeout: 8000 },
-          { name: 'gemini-2.0-flash-001',  version: 'v1',     timeout: 8000 },
+          { name: 'gemini-2.5-flash',      version: 'v1', timeout: 20000 },
+          { name: 'gemini-2.5-flash-lite',  version: 'v1', timeout: 10000 },
+          { name: 'gemini-2.0-flash-lite',  version: 'v1', timeout: 10000 },
+          { name: 'gemini-2.0-flash-lite-001', version: 'v1', timeout: 10000 },
         ];
         
         let dataAI = null;
