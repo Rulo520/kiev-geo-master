@@ -1141,7 +1141,7 @@ export default function AnalysisReport({ data }) {
         borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 8,
       }}>
         <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
-          Kiev GEO Master v3.3 — Análisis GEO/AEO avanzado
+          Kiev GEO Master v3.3.1 — Análisis GEO/AEO avanzado
         </p>
       </div>
     </div>
