@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { analyzeWebsite } from "@/utils/analyzer";
 
-// Timeout máximo para la función serverless (60 segundos)
-export const maxDuration = 60;
+// Timeout máximo para la función serverless (90 segundos) — v3: 60s → 90s
+export const maxDuration = 90;
 
 export async function POST(request) {
   try {

@@ -1,1234 +1,943 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Activity,
-  Search,
-  FileText,
-  Bot,
-  Zap,
-  BookOpen,
-  ListChecks,
-  Target,
-  BarChart3,
-  Waves,
-  Info,
-  Shield,
-  Globe,
-  Image,
-  Type,
-  Hash,
-  Clock,
-  Gauge,
-  Eye,
-  Accessibility,
-  FileSearch,
-  AlertOctagon,
-  Sparkles,
-  Monitor,
-  ChevronDown,
-  ChevronUp,
+  CheckCircle2, XCircle, AlertTriangle, Activity, Search, FileText, Bot, Zap,
+  BookOpen, ListChecks, Target, BarChart3, Waves, Info, Shield, Globe, Image,
+  Type, Hash, Clock, Gauge, Eye, Accessibility, FileSearch, AlertOctagon,
+  Sparkles, Monitor, ChevronDown, ChevronUp, Link2, ImageIcon, Languages,
+  Share2, Heart, Smartphone, Palette, Tag
 } from "lucide-react";
 import styles from "../app/page.module.css";
 
-/* ──────────────────────────────────────────────
-   SMALL INLINE COMPONENTS
-   ────────────────────────────────────────────── */
+// ─── Helper Functions ───────────────────────────────────────────────────────
 
-/** Audit mode badge: AI (Gemini) or Heuristic */
-function AuditModeBadge({ isAI, aiError }) {
+function getScoreColor(score) {
+  if (score > 70) return "#22c55e";
+  if (score > 40) return "#eab308";
+  return "#ef4444";
+}
+
+function getScoreGrade(score) {
+  if (score >= 90) return "A";
+  if (score >= 70) return "B";
+  if (score >= 50) return "C";
+  if (score >= 30) return "D";
+  return "F";
+}
+
+function getGradeColor(grade) {
+  switch (grade) {
+    case "A": return "#22c55e";
+    case "B": return "#4ade80";
+    case "C": return "#eab308";
+    case "D": return "#f97316";
+    case "F": return "#ef4444";
+    default: return "#6b7280";
+  }
+}
+
+function getCWVColor(metric, value) {
+  if (value == null || value === undefined) return "#6b7280";
+  switch (metric) {
+    case "lcp":
+      if (value < 2500) return "#22c55e";
+      if (value < 4000) return "#eab308";
+      return "#ef4444";
+    case "cls":
+      if (value < 0.1) return "#22c55e";
+      if (value < 0.25) return "#eab308";
+      return "#ef4444";
+    case "tbt":
+      if (value < 200) return "#22c55e";
+      if (value < 600) return "#eab308";
+      return "#ef4444";
+    case "speedIndex":
+      if (value < 3400) return "#22c55e";
+      if (value < 5800) return "#eab308";
+      return "#ef4444";
+    case "ttfb":
+      if (value < 800) return "#22c55e";
+      if (value < 1800) return "#eab308";
+      return "#ef4444";
+    default:
+      return "#6b7280";
+  }
+}
+
+function getCWVLabel(metric, value) {
+  if (value == null || value === undefined) return "N/A";
+  const color = getCWVColor(metric, value);
+  if (color === "#22c55e") return "Bueno";
+  if (color === "#eab308") return "Necesita mejora";
+  return "Deficiente";
+}
+
+function formatLCP(ms) {
+  if (ms == null) return "N/A";
+  return (ms / 1000).toFixed(1) + "s";
+}
+
+function formatCLS(val) {
+  if (val == null) return "N/A";
+  return val.toFixed(3);
+}
+
+function formatMs(val) {
+  if (val == null) return "N/A";
+  return Math.round(val) + "ms";
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return "—";
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("es-ES", {
+      year: "numeric", month: "long", day: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch {
+    return isoStr;
+  }
+}
+
+function getRagColor(prob) {
+  switch (prob) {
+    case "Alta": return "#22c55e";
+    case "Media": return "#eab308";
+    case "Baja": return "#ef4444";
+    default: return "#6b7280";
+  }
+}
+
+function getRiskLevelColor(level) {
+  if (!level) return "#6b7280";
+  const l = level.toLowerCase();
+  if (l === "bajo" || l === "low") return "#22c55e";
+  if (l === "medio" || l === "medium") return "#eab308";
+  return "#ef4444";
+}
+
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
+
+// ─── Sub-Components ─────────────────────────────────────────────────────────
+
+function BooleanIndicator({ value, labelTrue, labelFalse }) {
+  return value ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#22c55e" }}>
+      <CheckCircle2 size={16} /> {labelTrue || "Sí"}
+    </span>
+  ) : (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#ef4444" }}>
+      <XCircle size={16} /> {labelFalse || "No"}
+    </span>
+  );
+}
+
+function StatusBadge({ label, color, icon: Icon }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      background: color + "18", color, border: `1px solid ${color}40`,
+      borderRadius: 20, padding: "4px 14px", fontSize: 13, fontWeight: 600,
+      letterSpacing: 0.3,
+    }}>
+      {Icon && <Icon size={14} />}
+      {label}
+    </span>
+  );
+}
+
+function ScoreCircle({ score, size = 120, strokeWidth = 8, label }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = clamp(score, 0, 100);
+  const offset = circumference - (progress / 100) * circumference;
+  const color = getScoreColor(score);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={radius}
+          fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius}
+          fill="none" stroke={color} strokeWidth={strokeWidth}
+          strokeLinecap="round" strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 1s ease-out" }} />
+      </svg>
+      <div style={{
+        position: "relative", marginTop: -size + 10, height: size - 20,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}>
+        <span style={{ fontSize: size * 0.32, fontWeight: 800, color, lineHeight: 1 }}>
+          {Math.round(score)}
+        </span>
+        {label && (
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{label}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AnimatedBar({ value, max = 100, color, label, showValue = true, height = 10 }) {
+  const pct = max > 0 ? clamp((value / max) * 100, 0, 100) : 0;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      {label && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 13 }}>
+          <span style={{ color: "rgba(255,255,255,0.8)" }}>{label}</span>
+          {showValue && <span style={{ color, fontWeight: 600 }}>{typeof value === "number" ? value.toFixed(1) : value}</span>}
+        </div>
+      )}
+      <div style={{
+        width: "100%", height, background: "rgba(255,255,255,0.06)",
+        borderRadius: height / 2, overflow: "hidden",
+      }}>
+        <div style={{
+          width: `${pct}%`, height: "100%", background: color || getScoreColor(pct),
+          borderRadius: height / 2,
+          transition: "width 1s ease-out",
+        }} />
+      </div>
+    </div>
+  );
+}
+
+function AuditModeBadge({ isAI, aiError, aiErrorCode }) {
   if (isAI && !aiError) {
     return (
-      <span className={`${styles.auditBadge} ${styles.badgeAI}`}>
-        <Sparkles size={13} /> Auditoría IA (Gemini)
-      </span>
+      <StatusBadge label="Auditoría IA (Gemini)" color="#a78bfa" icon={Sparkles} />
     );
   }
-  return (
-    <span className={`${styles.auditBadge} ${styles.badgeHeuristic}`}>
-      <Activity size={13} /> Análisis Heurístico
-    </span>
-  );
-}
-
-/** Animated SVG donut for the overall score */
-function ScoreDonut({ score = 0 }) {
-  const [offset, setOffset] = useState(377);
-  const r = 60;
-  const circ = 2 * Math.PI * r; // ~377
-  const clamp = Math.max(0, Math.min(100, score));
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setOffset(circ - (clamp / 100) * circ);
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [clamp, circ]);
-
-  const color =
-    clamp >= 80 ? "var(--success)" : clamp >= 50 ? "var(--warning)" : "var(--danger)";
-
-  return (
-    <div className={styles.donutWrapper}>
-      <svg className={styles.donutSvg} viewBox="0 0 140 140">
-        <circle cx="70" cy="70" r={r} className={styles.donutBackground} />
-        <circle
-          cx="70"
-          cy="70"
-          r={r}
-          className={styles.donutProgress}
-          style={{
-            stroke: color,
-            strokeDasharray: circ,
-            strokeDashoffset: offset,
-            filter: `drop-shadow(0 0 6px ${color})`,
-          }}
-        />
-      </svg>
-      <div className={styles.donutText}>
-        <span style={{ color }}>{clamp}</span>
-        <span>/ 100</span>
-      </div>
-    </div>
-  );
-}
-
-/** Small CWV gauge (60×60) */
-function PerformanceGauge({ value, max, thresholds, label, unit = "" }) {
-  const [off, setOff] = useState(151);
-  const r = 24;
-  const circ = 2 * Math.PI * r; // ~151
-
-  const safeVal = value ?? 0;
-  const pct = max ? Math.min(safeVal / max, 1) : 0;
-
-  let color = "var(--success)";
-  if (thresholds) {
-    if (safeVal > thresholds[1]) color = "var(--danger)";
-    else if (safeVal > thresholds[0]) color = "var(--warning)";
-  }
-
-  useEffect(() => {
-    const t = setTimeout(() => setOff(circ - pct * circ), 150);
-    return () => clearTimeout(t);
-  }, [pct, circ]);
-
-  if (value === null || value === undefined) {
+  if (aiError) {
     return (
-      <div className={styles.cwvGauge}>
-        <svg width="60" height="60" viewBox="0 0 60 60">
-          <circle
-            cx="30" cy="30" r={r}
-            fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="5"
-          />
-        </svg>
-        <span className={styles.cwvGaugeLabel}>{label}</span>
-        <span className={styles.cwvGaugeValue} style={{ color: "var(--text-muted)" }}>—</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.cwvGauge}>
-      <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
-        <circle
-          cx="30" cy="30" r={r}
-          fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="5"
-        />
-        <circle
-          cx="30" cy="30" r={r}
-          fill="none" stroke={color} strokeWidth="5"
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={off}
-          style={{
-            transition: "stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)",
-            filter: `drop-shadow(0 0 4px ${color})`,
-          }}
-        />
-      </svg>
-      <span className={styles.cwvGaugeLabel}>{label}</span>
-      <span className={styles.cwvGaugeValue} style={{ color }}>
-        {typeof safeVal === "number" && safeVal % 1 !== 0 ? safeVal.toFixed(2) : safeVal}
-        {unit}
-      </span>
-    </div>
-  );
-}
-
-/** 5-axis radar for GEO Alignment */
-function RadarChart({ data }) {
-  if (!data) return null;
-  const axes = [
-    { key: "directness", label: "Directness" },
-    { key: "fact_density", label: "Fact Density" },
-    { key: "structural_clarity", label: "Structure" },
-    { key: "authority", label: "Authority" },
-    { key: "technical_health", label: "Tech Health" },
-  ];
-
-  const cx = 120,
-    cy = 120,
-    R = 90;
-  const n = axes.length;
-  const angleStep = (2 * Math.PI) / n;
-
-  const point = (i, val) => {
-    const a = angleStep * i - Math.PI / 2;
-    const rr = (val / 10) * R;
-    return [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
-  };
-
-  const gridLevels = [2, 4, 6, 8, 10];
-
-  return (
-    <div className={styles.radarCard}>
-      <svg width="240" height="260" viewBox="0 0 240 260">
-        {/* Grid polygons */}
-        {gridLevels.map((lv) => (
-          <polygon
-            key={lv}
-            points={axes.map((_, i) => point(i, lv).join(",")).join(" ")}
-            fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth="1"
-          />
-        ))}
-        {/* Axis lines */}
-        {axes.map((_, i) => {
-          const [px, py] = point(i, 10);
-          return (
-            <line
-              key={i}
-              x1={cx} y1={cy} x2={px} y2={py}
-              stroke="rgba(255,255,255,0.06)" strokeWidth="1"
-            />
-          );
-        })}
-        {/* Data polygon */}
-        <polygon
-          points={axes.map((a, i) => point(i, data[a.key] ?? 0).join(",")).join(" ")}
-          fill="rgba(108,92,231,0.18)"
-          stroke="var(--primary)"
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-        {/* Data points */}
-        {axes.map((a, i) => {
-          const [px, py] = point(i, data[a.key] ?? 0);
-          return <circle key={i} cx={px} cy={py} r="3.5" fill="var(--primary)" />;
-        })}
-        {/* Labels */}
-        {axes.map((a, i) => {
-          const [px, py] = point(i, 12);
-          return (
-            <text
-              key={i}
-              x={px} y={py}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill="var(--text-muted)"
-              fontSize="10"
-              fontFamily="var(--font)"
-            >
-              {a.label}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-/** Horizontal animated bars for semantic intent + signal-to-noise */
-function IntentBars({ intent, signalToNoise }) {
-  if (!intent) return null;
-
-  const bars = [
-    { label: "Informacional", value: intent.informational ?? 0, color: "var(--primary)" },
-    { label: "Comercial", value: intent.commercial ?? 0, color: "var(--accent)" },
-    { label: "Transaccional", value: intent.transactional ?? 0, color: "var(--warning)" },
-  ];
-
-  const sn = signalToNoise ?? 0;
-  const snColor =
-    sn >= 0.7 ? "var(--success)" : sn >= 0.4 ? "var(--warning)" : "var(--danger)";
-
-  return (
-    <div className={styles.intentCard}>
-      {bars.map((b) => (
-        <div key={b.label} className={styles.barRow}>
-          <div className={styles.barLabel}>
-            <span>{b.label}</span>
-            <span>{Math.round(b.value * 100)}%</span>
-          </div>
-          <div className={styles.barBg}>
-            <div
-              className={styles.barFill}
-              style={{
-                width: `${Math.round(b.value * 100)}%`,
-                background: b.color,
-              }}
-            />
-          </div>
-        </div>
-      ))}
-      <div className={styles.noiseIndicator}>
-        <div className={styles.noiseHeader}>
-          <span><Waves size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />Señal/Ruido</span>
-          <span className={styles.noiseValue} style={{ color: snColor }}>
-            {(sn * 100).toFixed(0)}%
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Status icon: green check, red X, yellow warning */
-function StatusIcon({ status }) {
-  if (status === "good" || status === true) {
-    return (
-      <span className={`${styles.statusIcon} ${styles.statusGood}`}>
-        <CheckCircle2 size={16} />
-      </span>
-    );
-  }
-  if (status === "warn" || status === "warning") {
-    return (
-      <span className={`${styles.statusIcon} ${styles.statusWarn}`}>
-        <AlertTriangle size={16} />
-      </span>
-    );
-  }
-  return (
-    <span className={`${styles.statusIcon} ${styles.statusError}`}>
-      <XCircle size={16} />
-    </span>
-  );
-}
-
-/** Metric row: label + value + status icon */
-function MetricRow({ label, value, status, icon: Icon, tooltip }) {
-  return (
-    <div className={styles.metricRow}>
-      <span className={styles.metricLabel}>
-        {Icon && <Icon size={15} />}
-        {label}
-        {tooltip && <Tooltip text={tooltip} />}
-      </span>
-      <span className={styles.metricValue}>
-        {value}
-        {status !== undefined && <StatusIcon status={status} />}
-      </span>
-    </div>
-  );
-}
-
-/** Info-icon with hover tooltip */
-function Tooltip({ text }) {
-  return (
-    <span className={styles.tooltipContainer}>
-      <Info size={13} className={styles.infoIcon} />
-      <span className={styles.tooltipText}>{text}</span>
-    </span>
-  );
-}
-
-/** Collapsible card wrapper */
-function Card({ title, icon: Icon, children, defaultOpen = true, badge }) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader} onClick={() => setOpen((o) => !o)}>
-        <span className={styles.cardHeaderIconGroup}>
-          {Icon && <Icon size={18} />}
-          {title}
-          {badge}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <StatusBadge label="Auditoría Heurística" color="#60a5fa" icon={Monitor} />
+        <span style={{
+          fontSize: 12, color: "#f97316",
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <AlertTriangle size={12} />
+          IA no disponible{aiErrorCode ? ` (${aiErrorCode})` : ""}
         </span>
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </div>
-      <div className={`${styles.cardContent} ${open ? styles.cardContentExpanded : ""}`}>
-        {children}
+    );
+  }
+  return <StatusBadge label="Auditoría Heurística" color="#60a5fa" icon={Monitor} />;
+}
+
+function MetricCard({ icon: Icon, label, value, unit, color }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 6,
+      minWidth: 130,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
+        {Icon && <Icon size={14} />}
+        {label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: color || "#fff" }}>
+        {value}
+        {unit && <span style={{ fontSize: 13, fontWeight: 400, marginLeft: 2 }}>{unit}</span>}
       </div>
     </div>
   );
 }
 
-/** Character length pill */
-function LengthPill({ length, status }) {
-  const cls =
-    status === "good"
-      ? styles.lengthGood
-      : status === "warn"
-      ? styles.lengthWarn
-      : styles.lengthError;
+function ChecklistItem({ checked, label, detail }) {
   return (
-    <span className={`${styles.lengthIndicator} ${cls}`}>
-      {length} chars
-    </span>
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0",
+      borderBottom: "1px solid rgba(255,255,255,0.04)",
+    }}>
+      {checked ? (
+        <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: 1 }} />
+      ) : (
+        <XCircle size={18} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+      )}
+      <div style={{ flex: 1 }}>
+        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14 }}>{label}</span>
+        {detail && (
+          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginLeft: 8 }}>{detail}</span>
+        )}
+      </div>
+    </div>
   );
 }
 
-/* ──────────────────────────────────────────────
-   ACTION PLAN GENERATOR
-   ────────────────────────────────────────────── */
-
-function generateActionPlan(data) {
-  const steps = [];
-  const t = data.technical || {};
-  const c = data.content || {};
-  const m = data.metrics2026 || {};
-  const meta = c.meta || {};
-  const acc = data.accessibility || {};
-  const perf = data.performance || {};
-
-  // Technical
-  if (!t.robotsTxt) {
-    steps.push({
-      title: "Crear robots.txt",
-      desc: "No se detectó archivo robots.txt. Crea uno que permita a los crawlers de IA acceder al sitio.",
-      icon: FileSearch,
-      priority: "alta",
-    });
-  } else if (t.robotsTxtDetails && !t.robotsTxtDetails.allowsAIBots) {
-    steps.push({
-      title: "Permitir bots de IA en robots.txt",
-      desc: `Bots bloqueados: ${(t.robotsTxtDetails.blockedBots || []).join(", ") || "varios"}. Revisa si realmente quieres bloquearlos.`,
-      icon: Bot,
-      priority: "alta",
-    });
-  }
-
-  if (!t.llmsTxt) {
-    steps.push({
-      title: "Crear archivo llms.txt",
-      desc: "Añade un archivo llms.txt para guiar a los modelos de IA sobre la estructura y propósito de tu sitio.",
-      icon: FileText,
-      priority: "media",
-    });
-  } else if (t.llmsTxtQuality && t.llmsTxtQuality !== "good") {
-    steps.push({
-      title: "Mejorar calidad de llms.txt",
-      desc: `La calidad actual es "${t.llmsTxtQuality}". Revisa que incluya secciones claras y datos estructurados.`,
-      icon: FileText,
-      priority: "media",
-    });
-  }
-
-  if (!t.sitemapXml) {
-    steps.push({
-      title: "Crear sitemap.xml",
-      desc: "No se encontró un sitemap. Genera uno que incluya todas las páginas importantes para facilitar la indexación.",
-      icon: Globe,
-      priority: "alta",
-    });
-  }
-
-  if (t.schemasFound === 0) {
-    steps.push({
-      title: "Añadir datos estructurados (JSON-LD)",
-      desc: "No se encontraron schemas. Implementa al menos Organization, WebSite, y los schemas relevantes para tu contenido.",
-      icon: Hash,
-      priority: "alta",
-    });
-  }
-
-  if (!t.hasGoodHierarchy) {
-    steps.push({
-      title: "Corregir jerarquía de encabezados",
-      desc: `H1: ${t.h1Count ?? 0}, H2: ${t.h2Count ?? 0}, H3: ${t.h3Count ?? 0}. Asegura un H1 único y una estructura lógica de H2/H3.`,
-      icon: Type,
-      priority: "media",
-    });
-  }
-
-  if (!t.isSSR) {
-    steps.push({
-      title: "Implementar renderizado del lado del servidor (SSR)",
-      desc: "El contenido parece renderizarse en el cliente. Los crawlers de IA y SEO requieren HTML pre-renderizado.",
-      icon: Monitor,
-      priority: "alta",
-    });
-  }
-
-  if (!t.https) {
-    steps.push({
-      title: "Migrar a HTTPS",
-      desc: "El sitio no usa HTTPS. Instala un certificado SSL/TLS para seguridad y SEO.",
-      icon: Shield,
-      priority: "crítica",
-    });
-  }
-
-  // Security headers
-  const sec = t.securityHeaders || {};
-  const missingHeaders = [];
-  if (!sec.hsts) missingHeaders.push("HSTS");
-  if (!sec.csp) missingHeaders.push("CSP");
-  if (!sec.xFrameOptions) missingHeaders.push("X-Frame-Options");
-  if (!sec.xContentTypeOptions) missingHeaders.push("X-Content-Type-Options");
-  if (missingHeaders.length > 0) {
-    steps.push({
-      title: "Configurar cabeceras de seguridad",
-      desc: `Falta${missingHeaders.length > 1 ? "n" : ""}: ${missingHeaders.join(", ")}. Configúralas en tu servidor.`,
-      icon: Shield,
-      priority: "media",
-    });
-  }
-
-  if (t.latencyMs > 2000) {
-    steps.push({
-      title: "Reducir latencia del servidor",
-      desc: `El tiempo de respuesta es ${t.latencyMs}ms. Objetivo: <500ms. Optimiza el backend, usa caching o un CDN.`,
-      icon: Clock,
-      priority: "alta",
-    });
-  }
-
-  // Meta tags
-  if (meta.titleStatus === "error" || !meta.title) {
-    steps.push({
-      title: "Optimizar etiqueta <title>",
-      desc: meta.title
-        ? `Longitud actual: ${meta.titleLength} chars. Objetivo: 50-60 caracteres.`
-        : "No se encontró etiqueta <title>. Es esencial para SEO y IA.",
-      icon: Type,
-      priority: "alta",
-    });
-  }
-
-  if (meta.descriptionStatus === "error" || !meta.description) {
-    steps.push({
-      title: "Mejorar meta description",
-      desc: meta.description
-        ? `Longitud actual: ${meta.descriptionLength} chars. Objetivo: 150-160 caracteres.`
-        : "No se encontró meta description. Crucial para CTR y GEO.",
-      icon: FileText,
-      priority: "alta",
-    });
-  }
-
-  if (!meta.hasOgTags) {
-    steps.push({
-      title: "Añadir Open Graph tags",
-      desc: "Sin tags OG, las previsualizaciones en redes sociales y plataformas de IA serán pobres.",
-      icon: Globe,
-      priority: "media",
-    });
-  }
-
-  if (!meta.hasTwitterCards) {
-    steps.push({
-      title: "Añadir Twitter Cards",
-      desc: "Implementa meta tags de Twitter Cards para mejor presentación en redes sociales.",
-      icon: Globe,
-      priority: "baja",
-    });
-  }
-
-  if (!meta.hasCanonical) {
-    steps.push({
-      title: "Definir URL canónica",
-      desc: "Sin canonical, los motores pueden indexar duplicados. Añade <link rel='canonical'>.",
-      icon: Globe,
-      priority: "media",
-    });
-  }
-
-  // Content
-  if (c.blufScore !== undefined && c.blufScore < 5) {
-    steps.push({
-      title: "Mejorar estructura BLUF",
-      desc: "Coloca la conclusión o respuesta principal en el primer párrafo (Bottom Line Up Front).",
-      icon: Target,
-      priority: "alta",
-    });
-  }
-
-  if (c.wordCount !== undefined && c.wordCount < 300) {
-    steps.push({
-      title: "Ampliar contenido",
-      desc: `Solo ${c.wordCount} palabras. Los motores de IA prefieren contenido sustancial (>300 palabras).`,
-      icon: BookOpen,
-      priority: "media",
-    });
-  }
-
-  if (!c.hasAuthor) {
-    steps.push({
-      title: "Agregar señales de autoría (E-E-A-T)",
-      desc: "Incluye nombre del autor, bio y credenciales para mejorar la autoridad del contenido.",
-      icon: Eye,
-      priority: "media",
-    });
-  }
-
-  // Accessibility
-  if (acc.imagesWithoutAlt > 0) {
-    steps.push({
-      title: "Añadir texto alt a imágenes",
-      desc: `${acc.imagesWithoutAlt} de ${acc.imagesTotal} imágenes sin alt text. El alt es esencial para accesibilidad y SEO.`,
-      icon: Image,
-      priority: "alta",
-    });
-  }
-
-  if (!acc.hasSkipLink) {
-    steps.push({
-      title: "Añadir enlace skip-to-content",
-      desc: "Facilita la navegación por teclado con un enlace de salto al contenido principal.",
-      icon: Accessibility,
-      priority: "baja",
-    });
-  }
-
-  if (acc.formsTotal > 0 && acc.formsWithLabels < acc.formsTotal) {
-    steps.push({
-      title: "Etiquetar formularios correctamente",
-      desc: `${acc.formsTotal - acc.formsWithLabels} formulario(s) sin labels. Los labels mejoran accesibilidad y UX.`,
-      icon: ListChecks,
-      priority: "media",
-    });
-  }
-
-  // Performance
-  if (perf.available) {
-    if (perf.lcp != null && perf.lcp > 4000) {
-      steps.push({
-        title: "Reducir LCP (Largest Contentful Paint)",
-        desc: `LCP: ${perf.lcp}ms (pobre). Optimiza imágenes, usa lazy loading y CDN. Objetivo: <2500ms.`,
-        icon: Gauge,
-        priority: "alta",
-      });
-    }
-    if (perf.cls != null && perf.cls > 0.25) {
-      steps.push({
-        title: "Corregir CLS (Cumulative Layout Shift)",
-        desc: `CLS: ${perf.cls} (pobre). Define dimensiones en imágenes/ads y evita inserciones dinámicas.`,
-        icon: Activity,
-        priority: "alta",
-      });
-    }
-    if (perf.tbt != null && perf.tbt > 600) {
-      steps.push({
-        title: "Reducir TBT (Total Blocking Time)",
-        desc: `TBT: ${perf.tbt}ms (pobre). Divide JavaScript largo en tareas menores y usa code-splitting.`,
-        icon: Zap,
-        priority: "alta",
-      });
-    }
-    if (perf.ttfb != null && perf.ttfb > 1800) {
-      steps.push({
-        title: "Optimizar TTFB",
-        desc: `TTFB: ${perf.ttfb}ms. Mejora tiempos del servidor con caching, CDN y optimización de queries.`,
-        icon: Clock,
-        priority: "alta",
-      });
-    }
-    if (perf.performanceScore != null && perf.performanceScore < 50) {
-      steps.push({
-        title: "Mejorar score de Performance",
-        desc: `Score actual: ${perf.performanceScore}/100. Revisa LCP, TBT y CLS como prioridad.`,
-        icon: Gauge,
-        priority: "alta",
-      });
-    }
-  }
-
-  // GEO metrics
-  if (m.geoAlignment) {
-    const geo = m.geoAlignment;
-    if (geo.directness < 5) {
-      steps.push({
-        title: "Mejorar directness del contenido",
-        desc: "El contenido debe responder preguntas de forma directa, sin rodeos.",
-        icon: Target,
-        priority: "media",
-      });
-    }
-    if (geo.fact_density < 5) {
-      steps.push({
-        title: "Incrementar densidad de hechos",
-        desc: "Añade datos concretos, estadísticas y cifras verificables.",
-        icon: BarChart3,
-        priority: "media",
-      });
-    }
-  }
-
-  // Sort by priority
-  const priorityOrder = { crítica: 0, alta: 1, media: 2, baja: 3 };
-  steps.sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3));
-
-  return steps;
+function GridStat({ label, value, icon: Icon, color }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.03)", borderRadius: 10,
+      padding: "14px 16px", display: "flex", alignItems: "center", gap: 12,
+      border: "1px solid rgba(255,255,255,0.06)",
+    }}>
+      {Icon && <Icon size={18} style={{ color: color || "rgba(255,255,255,0.4)", flexShrink: 0 }} />}
+      <div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: color || "#fff" }}>{value}</div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{label}</div>
+      </div>
+    </div>
+  );
 }
 
-/* ──────────────────────────────────────────────
-   MAIN COMPONENT
-   ────────────────────────────────────────────── */
+// ─── Section Wrapper ────────────────────────────────────────────────────────
+
+function Section({ title, icon: Icon, iconColor, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16, overflow: "hidden", marginBottom: 16,
+    }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 20px", background: "rgba(255,255,255,0.03)", border: "none",
+          cursor: "pointer", color: "#fff", fontSize: 15, fontWeight: 700,
+          borderBottom: open ? "1px solid rgba(255,255,255,0.06)" : "none",
+          transition: "background 0.2s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {Icon && <Icon size={18} style={{ color: iconColor || "#a78bfa" }} />}
+          {title}
+        </span>
+        {open ? <ChevronUp size={18} style={{ color: "rgba(255,255,255,0.4)" }} /> : <ChevronDown size={18} style={{ color: "rgba(255,255,255,0.4)" }} />}
+      </button>
+      {open && (
+        <div style={{ padding: "20px" }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function AnalysisReport({ data }) {
-  if (!data) return null;
+  if (!data || !data.success) {
+    return (
+      <div className={styles.reportContainer} style={{
+        padding: 40, textAlign: "center", color: "rgba(255,255,255,0.5)",
+      }}>
+        <AlertOctagon size={40} style={{ margin: "0 auto 16px", display: "block", color: "#ef4444" }} />
+        <p style={{ fontSize: 16, fontWeight: 600, color: "#ef4444" }}>No se pudo completar el análisis</p>
+        <p style={{ fontSize: 13, marginTop: 8 }}>Verifica la URL e intenta de nuevo.</p>
+      </div>
+    );
+  }
 
-  const t = data.technical || {};
-  const c = data.content || {};
-  const meta = c.meta || {};
-  const m = data.metrics2026 || {};
-  const geo = m.geoAlignment || {};
-  const intent = m.semanticIntent || {};
-  const acc = data.accessibility || {};
-  const perf = data.performance || {};
-  const sec = t.securityHeaders || {};
-
-  const actionPlan = generateActionPlan(data);
+  const { technical, content, accessibility, metrics2026, performance, social } = data;
+  const meta = content?.meta || {};
+  const keywords = content?.keywords || {};
+  const internalLinks = technical?.internalLinks || {};
+  const imageOpt = technical?.imageOptimization || {};
+  const hreflang = technical?.hreflang || {};
+  const cwv = technical?.cwvEstimate || null;
+  const secHeaders = technical?.securityHeaders || {};
+  const geoAlign = metrics2026?.geoAlignment || {};
+  const semanticIntent = metrics2026?.semanticIntent || {};
+  const grade = getScoreGrade(data.overallScore);
 
   return (
-    <div className={styles.reportGrid}>
-      {/* ─── 1. OVERALL SCORE ─── */}
-      <div className={`${styles.card}`}>
-        <div className={styles.overallScore}>
-          <div className={styles.scoreColumn}>
-            <AuditModeBadge isAI={data.isAI} aiError={data.aiError} />
-            <ScoreDonut score={data.overallScore} />
-            <span className={styles.scoreColumnLabel}>Score Global</span>
-          </div>
+    <div className={styles.reportContainer} style={{ maxWidth: 860, margin: "0 auto" }}>
 
-          <div className={styles.scoreSectionColumns}>
-            <div className={styles.scoreColumn}>
-              <RadarChart data={geo} />
-              <span className={styles.scoreColumnLabel}>GEO Alignment</span>
-            </div>
-            <div className={styles.scoreColumn}>
-              <IntentBars intent={intent} signalToNoise={m.signalToNoise} />
-              <span className={styles.scoreColumnLabel}>Intent & Señal</span>
-            </div>
-          </div>
-        </div>
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div style={{
+        textAlign: "center", padding: "30px 20px 10px", marginBottom: 10,
+      }}>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>
+          Análisis realizado el {formatDate(data.analyzedAt)}
+        </p>
+        <p style={{
+          fontSize: 14, color: "rgba(255,255,255,0.6)", wordBreak: "break-all",
+          fontFamily: "monospace", marginBottom: 0,
+        }}>
+          {data.url}
+        </p>
       </div>
 
-      {/* ─── 2. AUDITORÍA TÉCNICA ─── */}
-      <Card title="Auditoría Técnica (LLM Crawling)" icon={Bot}>
-        <MetricRow
-          label="robots.txt"
-          icon={FileSearch}
-          value={t.robotsTxt ? "Detectado" : "No encontrado"}
-          status={t.robotsTxt}
-          tooltip="Archivo que controla el acceso de crawlers"
-        />
-        {t.robotsTxt && t.robotsTxtDetails && (
-          <MetricRow
-            label="Permite bots de IA"
-            icon={Bot}
-            value={
-              t.robotsTxtDetails.allowsAIBots
-                ? "Sí"
-                : `Bloqueados: ${(t.robotsTxtDetails.blockedBots || []).join(", ") || "—"}`
-            }
-            status={t.robotsTxtDetails.allowsAIBots}
-          />
-        )}
-
-        <MetricRow
-          label="llms.txt"
-          icon={FileText}
-          value={
-            t.llmsTxt
-              ? t.llmsTxtQuality
-                ? `Detectado (${t.llmsTxtQuality})`
-                : "Detectado"
-              : "No encontrado"
-          }
-          status={t.llmsTxt ? (t.llmsTxtQuality === "good" ? "good" : "warn") : false}
-          tooltip="Archivo guía para modelos de lenguaje"
-        />
-
-        <MetricRow
-          label="sitemap.xml"
-          icon={Globe}
-          value={
-            t.sitemapXml
-              ? `Detectado (${t.sitemapUrlCount ?? 0} URLs)`
-              : "No encontrado"
-          }
-          status={t.sitemapXml}
-        />
-
-        <MetricRow
-          label="JSON-LD Schemas"
-          icon={Hash}
-          value={
-            t.schemasFound > 0
-              ? `${t.schemasFound} (${(t.schemaTypes || []).join(", ")})`
-              : "Ninguno"
-          }
-          status={t.schemasFound > 0}
-          tooltip="Datos estructurados para Google y IA"
-        />
-
-        <MetricRow
-          label="Jerarquía de encabezados"
-          icon={Type}
-          value={`H1:${t.h1Count ?? 0} H2:${t.h2Count ?? 0} H3:${t.h3Count ?? 0}`}
-          status={t.hasGoodHierarchy ? "good" : "warn"}
-          tooltip="Debe haber 1 H1 y estructura lógica"
-        />
-
-        <MetricRow
-          label="Server-Side Rendering"
-          icon={Monitor}
-          value={t.isSSR ? "Sí" : "No (Client-side)"}
-          status={t.isSSR}
-          tooltip="SSR mejora indexación por crawlers de IA"
-        />
-
-        <MetricRow
-          label="HTTPS"
-          icon={Shield}
-          value={t.https ? "Activo" : "No detectado"}
-          status={t.https}
-        />
-
-        {/* Security headers grid */}
-        <div style={{ padding: "0.5rem 0" }}>
-          <span className={styles.metricLabel} style={{ marginBottom: "0.5rem", display: "block" }}>
-            <Shield size={15} /> Cabeceras de Seguridad
-          </span>
-          <div className={styles.securityGrid}>
-            <div className={styles.securityItem}>
-              <StatusIcon status={sec.hsts} />
-              <span>HSTS</span>
-            </div>
-            <div className={styles.securityItem}>
-              <StatusIcon status={sec.csp} />
-              <span>CSP</span>
-            </div>
-            <div className={styles.securityItem}>
-              <StatusIcon status={sec.xFrameOptions} />
-              <span>X-Frame-Options</span>
-            </div>
-            <div className={styles.securityItem}>
-              <StatusIcon status={sec.xContentTypeOptions} />
-              <span>X-Content-Type</span>
+      {/* ── 1. Score Overview ──────────────────────────────────────────── */}
+      <Section title="Puntuación General" icon={Target} iconColor="#a78bfa" defaultOpen={true}>
+        <div style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 30,
+          marginBottom: 20,
+        }}>
+          {/* Big score circle */}
+          <div style={{ textAlign: "center" }}>
+            <ScoreCircle score={data.overallScore} size={140} strokeWidth={10} />
+            <div style={{
+              marginTop: 12, fontSize: 32, fontWeight: 900,
+              color: getGradeColor(grade), letterSpacing: 2,
+            }}>
+              {grade}
             </div>
           </div>
-        </div>
 
-        <MetricRow
-          label="Latencia de respuesta"
-          icon={Clock}
-          value={`${t.latencyMs ?? "—"}ms`}
-          status={
-            t.latencyMs == null
-              ? "warn"
-              : t.latencyMs < 500
-              ? "good"
-              : t.latencyMs < 2000
-              ? "warn"
-              : false
-          }
-          tooltip="Tiempo de respuesta del servidor"
-        />
-      </Card>
+          {/* Badges */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 200 }}>
+            <AuditModeBadge isAI={data.isAI} aiError={data.aiError} aiErrorCode={data.aiErrorCode} />
 
-      {/* ─── 3. SEO ON-PAGE & META TAGS ─── */}
-      <Card title="SEO On-Page & Meta Tags" icon={Search}>
-        {/* Title */}
-        <div className={styles.metricRow}>
-          <span className={styles.metricLabel}>
-            <Type size={15} /> Title tag
-            <Tooltip text="Ideal: 50-60 caracteres" />
-          </span>
-          <span className={styles.metricValue}>
-            <LengthPill length={meta.titleLength ?? 0} status={meta.titleStatus ?? "error"} />
-            <StatusIcon status={meta.titleStatus ?? "error"} />
-          </span>
-        </div>
-        {meta.title && <div className={styles.tagPreview}>{meta.title}</div>}
+            {metrics2026?.ragProbability && (
+              <StatusBadge
+                label={`Prob. RAG: ${metrics2026.ragProbability}`}
+                color={getRagColor(metrics2026.ragProbability)}
+                icon={Zap}
+              />
+            )}
 
-        {/* Description */}
-        <div className={styles.metricRow} style={{ marginTop: "0.5rem" }}>
-          <span className={styles.metricLabel}>
-            <FileText size={15} /> Meta Description
-            <Tooltip text="Ideal: 150-160 caracteres" />
-          </span>
-          <span className={styles.metricValue}>
-            <LengthPill
-              length={meta.descriptionLength ?? 0}
-              status={meta.descriptionStatus ?? "error"}
-            />
-            <StatusIcon status={meta.descriptionStatus ?? "error"} />
-          </span>
-        </div>
-        {meta.description && (
-          <div className={styles.tagPreview}>{meta.description}</div>
-        )}
-
-        <div style={{ height: "0.5rem" }} />
-
-        <div className={styles.metaTagGrid}>
-          <MetricRow
-            label="Canonical URL"
-            icon={Globe}
-            value={meta.hasCanonical ? "Definida" : "Ausente"}
-            status={meta.hasCanonical}
-          />
-          <MetricRow
-            label="Viewport"
-            icon={Monitor}
-            value={meta.hasViewport ? "Configurado" : "Ausente"}
-            status={meta.hasViewport}
-          />
-          <MetricRow
-            label="Open Graph"
-            icon={Globe}
-            value={
-              meta.hasOgTags
-                ? `${(meta.ogTagsList || []).length} tags`
-                : "No detectado"
-            }
-            status={meta.hasOgTags}
-          />
-          <MetricRow
-            label="Twitter Cards"
-            icon={Globe}
-            value={meta.hasTwitterCards ? "Configurado" : "No detectado"}
-            status={meta.hasTwitterCards}
-          />
-          <MetricRow
-            label="Atributo lang"
-            icon={Globe}
-            value={
-              meta.hasLang
-                ? meta.langValue || "Sí"
-                : "Ausente"
-            }
-            status={meta.hasLang}
-          />
-        </div>
-
-        {meta.hasOgTags && (meta.ogTagsList || []).length > 0 && (
-          <div style={{ marginTop: "0.5rem" }}>
-            <span
-              className={styles.metricLabel}
-              style={{ display: "block", marginBottom: "0.3rem" }}
-            >
-              OG Tags detectados:
-            </span>
-            <div className={styles.tagPreview}>
-              {(meta.ogTagsList || []).join(" · ")}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* ─── 4. ESTRUCTURA DE CONTENIDO ─── */}
-      <Card title="Estructura de Contenido" icon={BookOpen}>
-        <MetricRow
-          label="BLUF Score"
-          icon={Target}
-          value={c.blufScore ?? "—"}
-          status={
-            c.blufScore == null
-              ? "warn"
-              : c.blufScore >= 7
-              ? "good"
-              : c.blufScore >= 4
-              ? "warn"
-              : false
-          }
-          tooltip="Bottom Line Up Front — respuesta directa en primer párrafo"
-        />
-        <MetricRow
-          label="BLUF Detectado"
-          icon={Eye}
-          value={c.blufDetected ? "Sí" : "No"}
-          status={c.blufDetected}
-        />
-        <MetricRow
-          label="Datos/Estadísticas"
-          icon={BarChart3}
-          value={c.statsCount ?? 0}
-          status={(c.statsCount ?? 0) > 0}
-          tooltip="Cifras, porcentajes y datos verificables encontrados"
-        />
-        <MetricRow
-          label="Escaneabilidad"
-          icon={ListChecks}
-          value={c.isScannable ? "Alta" : "Baja"}
-          status={c.isScannable}
-          tooltip="Uso de listas, subtítulos y párrafos cortos"
-        />
-        <MetricRow
-          label="Autoría (E-E-A-T)"
-          icon={Eye}
-          value={c.hasAuthor ? "Detectada" : "No detectada"}
-          status={c.hasAuthor}
-          tooltip="Señales de Experience, Expertise, Authority, Trust"
-        />
-        <MetricRow
-          label="Conteo de palabras"
-          icon={BookOpen}
-          value={c.wordCount ?? 0}
-          status={
-            (c.wordCount ?? 0) >= 300 ? "good" : "warn"
-          }
-          tooltip="Mínimo recomendado: 300 palabras"
-        />
-      </Card>
-
-      {/* ─── 5. ACCESIBILIDAD WEB ─── */}
-      <Card title="Accesibilidad Web" icon={Accessibility}>
-        <MetricRow
-          label="Imágenes con alt text"
-          icon={Image}
-          value={`${(acc.imagesTotal ?? 0) - (acc.imagesWithoutAlt ?? 0)} de ${acc.imagesTotal ?? 0}`}
-          status={
-            acc.imagesTotal === 0 || acc.imagesWithoutAlt === 0
-              ? "good"
-              : acc.imagesWithoutAlt <= 2
-              ? "warn"
-              : false
-          }
-          tooltip="Todas las imágenes deben tener texto alternativo"
-        />
-        <MetricRow
-          label="Atributo lang en HTML"
-          icon={Globe}
-          value={acc.hasLangAttribute ? "Presente" : "Ausente"}
-          status={acc.hasLangAttribute}
-        />
-        <MetricRow
-          label="Enlace skip-to-content"
-          icon={Zap}
-          value={acc.hasSkipLink ? "Presente" : "Ausente"}
-          status={acc.hasSkipLink ? "good" : "warn"}
-        />
-        <MetricRow
-          label="Forms con labels"
-          icon={ListChecks}
-          value={
-            acc.formsTotal === 0
-              ? "Sin formularios"
-              : `${acc.formsWithLabels ?? 0} de ${acc.formsTotal}`
-          }
-          status={
-            acc.formsTotal === 0
-              ? "good"
-              : acc.formsWithLabels >= acc.formsTotal
-              ? "good"
-              : "warn"
-          }
-        />
-        <MetricRow
-          label="Score de Accesibilidad"
-          icon={Gauge}
-          value={acc.score != null ? `${acc.score}/100` : "—"}
-          status={
-            acc.score == null
-              ? "warn"
-              : acc.score >= 80
-              ? "good"
-              : acc.score >= 50
-              ? "warn"
-              : false
-          }
-        />
-        {acc.score != null && (
-          <div style={{ display: "flex", justifyContent: "center", paddingTop: "0.5rem" }}>
-            <PerformanceGauge
-              value={acc.score}
-              max={100}
-              thresholds={[50, 80]}
-              label="A11Y"
-              unit=""
+            <StatusBadge
+              label={`Grado: ${grade}`}
+              color={getGradeColor(grade)}
+              icon={BarChart3}
             />
           </div>
-        )}
-      </Card>
-
-      {/* ─── 6. PERFORMANCE & CORE WEB VITALS ─── */}
-      {perf.available && (
-        <Card title="Performance & Core Web Vitals" icon={Gauge}>
-          {perf.performanceScore != null && (
-            <MetricRow
-              label="Performance Score"
-              icon={Gauge}
-              value={`${perf.performanceScore}/100`}
-              status={
-                perf.performanceScore >= 90
-                  ? "good"
-                  : perf.performanceScore >= 50
-                  ? "warn"
-                  : false
-              }
-            />
-          )}
-
-          <div className={styles.cwvGaugeGrid}>
-            <PerformanceGauge
-              value={perf.lcp}
-              max={6000}
-              thresholds={[2500, 4000]}
-              label="LCP"
-              unit="ms"
-            />
-            <PerformanceGauge
-              value={perf.cls}
-              max={0.5}
-              thresholds={[0.1, 0.25]}
-              label="CLS"
-              unit=""
-            />
-            <PerformanceGauge
-              value={perf.tbt}
-              max={1000}
-              thresholds={[200, 600]}
-              label="TBT"
-              unit="ms"
-            />
-            <PerformanceGauge
-              value={perf.ttfb}
-              max={3000}
-              thresholds={[800, 1800]}
-              label="TTFB"
-              unit="ms"
-            />
-            <PerformanceGauge
-              value={perf.speedIndex}
-              max={8000}
-              thresholds={[3400, 5800]}
-              label="Speed Idx"
-              unit="ms"
-            />
-          </div>
-        </Card>
-      )}
-
-      {/* ─── 7. MÉTRICAS GEO / AEO ─── */}
-      <Card title="Métricas GEO / AEO 2026" icon={BarChart3}>
-        <div className={styles.extraMetricsGrid}>
-          <MetricRow
-            label="SoM Simulation"
-            icon={Target}
-            value={
-              m.somSimulation != null
-                ? `${(m.somSimulation * 100).toFixed(1)}%`
-                : "—"
-            }
-            status={
-              m.somSimulation == null
-                ? "warn"
-                : m.somSimulation >= 0.3
-                ? "good"
-                : m.somSimulation >= 0.1
-                ? "warn"
-                : false
-            }
-            tooltip="Share-of-Model simulado"
-          />
-          <MetricRow
-            label="RAG Probability"
-            icon={Sparkles}
-            value={m.ragProbability ?? "—"}
-            status={
-              m.ragProbability === "Alta"
-                ? "good"
-                : m.ragProbability === "Media"
-                ? "warn"
-                : m.ragProbability
-                ? false
-                : "warn"
-            }
-            tooltip="Probabilidad de ser seleccionado en RAG"
-          />
-          <MetricRow
-            label="Sentiment Score"
-            icon={Waves}
-            value={m.sentimentScore ?? "—"}
-            status={
-              m.sentimentScore === "Positivo"
-                ? "good"
-                : m.sentimentScore === "Neutro"
-                ? "warn"
-                : m.sentimentScore
-                ? false
-                : "warn"
-            }
-            tooltip="Tono general del contenido"
-          />
         </div>
-      </Card>
+      </Section>
 
-      {/* ─── 8. HALLAZGOS CRÍTICOS DE IA ─── */}
-      {(m.criticalFindings || []).length > 0 && (
-        <div className={styles.findingsCard}>
-          <div className={styles.cardHeaderIconGroup} style={{ marginBottom: "1rem" }}>
-            <AlertOctagon size={18} style={{ color: "var(--warning)" }} />
-            <span style={{ fontWeight: 600 }}>Hallazgos Críticos de IA</span>
-          </div>
-          {m.criticalFindings.map((finding, i) => (
-            <div key={i} className={styles.findingItem}>
-              <span className={styles.findingNumber}>{i + 1}</span>
-              <span style={{ color: "var(--text-secondary)", fontSize: "0.92rem", lineHeight: 1.5 }}>
-                {finding}
-              </span>
+      {/* ── 2. GEO/AEO Score ──────────────────────────────────────────── */}
+      <Section title="GEO / AEO Score" icon={Activity} iconColor="#06b6d4">
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 12, marginBottom: 24,
+        }}>
+          <MetricCard icon={Waves} label="SoM Simulación"
+            value={metrics2026?.somSimulation != null ? metrics2026.somSimulation.toFixed(1) : "—"}
+            unit="%" color="#06b6d4" />
+          <MetricCard icon={Zap} label="Prob. RAG"
+            value={metrics2026?.ragProbability || "—"}
+            color={getRagColor(metrics2026?.ragProbability)} />
+          <MetricCard icon={Heart} label="Sentimiento"
+            value={metrics2026?.sentimentScore || "—"}
+            color="#a78bfa" />
+          <MetricCard icon={Gauge} label="Señal/Ruido"
+            value={metrics2026?.signalToNoise != null ? metrics2026.signalToNoise.toFixed(1) : "—"}
+            unit="%" color="#f59e0b" />
+        </div>
+
+        {/* GEO Alignment Bars */}
+        <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 14, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+          Alineación GEO
+        </h4>
+        <AnimatedBar value={geoAlign.directness ?? 0} max={10} color="#06b6d4" label="Directness" />
+        <AnimatedBar value={geoAlign.fact_density ?? 0} max={10} color="#8b5cf6" label="Densidad de datos" />
+        <AnimatedBar value={geoAlign.structural_clarity ?? 0} max={10} color="#22c55e" label="Claridad estructural" />
+        <AnimatedBar value={geoAlign.authority ?? 0} max={10} color="#f59e0b" label="Autoridad" />
+        <AnimatedBar value={geoAlign.technical_health ?? 0} max={10} color="#ef4444" label="Salud técnica" />
+
+        {/* Semantic Intent */}
+        <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 24, marginBottom: 14, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+          Intención Semántica
+        </h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {[
+            { label: "Informacional", value: semanticIntent.informational, color: "#06b6d4" },
+            { label: "Comercial", value: semanticIntent.commercial, color: "#f59e0b" },
+            { label: "Transaccional", value: semanticIntent.transactional, color: "#22c55e" },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={{
+              background: color + "10", border: `1px solid ${color}30`, borderRadius: 12,
+              padding: "18px 14px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 26, fontWeight: 800, color }}>{value != null ? `${Math.round(value)}%` : "—"}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
             </div>
           ))}
         </div>
+      </Section>
+
+      {/* ── 3. Hallazgos Críticos ─────────────────────────────────────── */}
+      {metrics2026?.criticalFindings && metrics2026.criticalFindings.length > 0 && (
+        <Section title="Hallazgos Críticos" icon={AlertOctagon} iconColor="#ef4444">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {metrics2026.criticalFindings.map((finding, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "flex-start", gap: 12,
+                background: "rgba(239, 68, 68, 0.06)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                borderRadius: 10, padding: "12px 16px",
+              }}>
+                <AlertTriangle size={18} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+                <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 1.5 }}>
+                  {finding}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
 
-      {/* ─── 9. PLAN DE ACCIÓN ─── */}
-      {actionPlan.length > 0 && (
-        <div className={styles.actionPlanCard}>
-          <div className={styles.cardHeaderIconGroup} style={{ marginBottom: "1rem" }}>
-            <ListChecks size={18} style={{ color: "var(--primary)" }} />
-            <span style={{ fontWeight: 600 }}>Plan de Acción ({actionPlan.length} pasos)</span>
+      {/* ── 4. Infraestructura Técnica ────────────────────────────────── */}
+      <Section title="Infraestructura Técnica" icon={Shield} iconColor="#22c55e">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          {/* Left column */}
+          <div>
+            <ChecklistItem checked={technical?.robotsTxt} label="robots.txt"
+              detail={technical?.robotsTxtDetails?.allowsAIBots
+                ? "Permite bots IA"
+                : technical?.robotsTxtDetails?.blockedBots?.length
+                  ? `Bloquea: ${technical.robotsTxtDetails.blockedBots.join(", ")}`
+                  : null
+              } />
+            <ChecklistItem checked={technical?.llmsTxt} label="llms.txt"
+              detail={technical?.llmsTxtQuality ? `Calidad: ${technical.llmsTxtQuality}` : null} />
+            <ChecklistItem checked={technical?.sitemapXml} label="sitemap.xml"
+              detail={technical?.sitemapUrlCount ? `${technical.sitemapUrlCount} URLs` : null} />
+            <ChecklistItem checked={technical?.schemasFound > 0} label="Schema.org"
+              detail={technical?.schemasFound
+                ? `${technical.schemasFound} esquema${technical.schemasFound !== 1 ? "s" : ""}: ${(technical.schemaTypes || []).join(", ")}`
+                : "No encontrado"
+              } />
+            <ChecklistItem checked={technical?.hasGoodHierarchy} label="Jerarquía de encabezados"
+              detail={`H1: ${technical?.h1Count ?? 0} · H2: ${technical?.h2Count ?? 0} · H3: ${technical?.h3Count ?? 0}`} />
           </div>
-          {actionPlan.map((step, i) => {
-            const Icon = step.icon || Zap;
-            const priorityColors = {
-              crítica: "var(--danger)",
-              alta: "var(--warning)",
-              media: "var(--accent)",
-              baja: "var(--text-muted)",
-            };
-            return (
-              <div key={i} className={styles.actionStep}>
-                <Icon
-                  size={20}
-                  style={{
-                    color: priorityColors[step.priority] || "var(--primary)",
-                    flexShrink: 0,
-                    marginTop: 2,
-                  }}
-                />
-                <div>
-                  <div className={styles.actionStepTitle}>
-                    {step.title}
-                    <span
-                      style={{
-                        marginLeft: "0.5rem",
-                        fontSize: "0.72rem",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        color: priorityColors[step.priority] || "var(--text-muted)",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      {step.priority}
-                    </span>
-                  </div>
-                  <div className={styles.actionStepDesc}>{step.desc}</div>
+          {/* Right column */}
+          <div>
+            <ChecklistItem checked={technical?.isSSR} label="Server-Side Rendering (SSR)" />
+            <ChecklistItem checked={technical?.https} label="HTTPS" />
+            <ChecklistItem checked={secHeaders.hsts} label="HSTS" detail="Seguridad de transporte" />
+            <ChecklistItem checked={secHeaders.csp} label="Content Security Policy" />
+            <ChecklistItem checked={secHeaders.xFrameOptions} label="X-Frame-Options" />
+            <ChecklistItem checked={secHeaders.xContentTypeOptions} label="X-Content-Type-Options" />
+          </div>
+        </div>
+
+        {/* Latency */}
+        {technical?.latencyMs != null && (
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <Clock size={16} style={{ color: "rgba(255,255,255,0.4)" }} />
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Latencia:</span>
+            <span style={{
+              fontSize: 14, fontWeight: 700,
+              color: technical.latencyMs < 500 ? "#22c55e" : technical.latencyMs < 1500 ? "#eab308" : "#ef4444",
+            }}>
+              {formatMs(technical.latencyMs)}
+            </span>
+          </div>
+        )}
+      </Section>
+
+      {/* ── 5. Links Internos y Externos (v3) ─────────────────────────── */}
+      <Section title="Links Internos y Externos" icon={Link2} iconColor="#60a5fa">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
+          <GridStat label="Total de enlaces" value={internalLinks.totalLinks ?? 0} icon={Link2} color="#60a5fa" />
+          <GridStat label="Internos" value={internalLinks.internalCount ?? 0} icon={Link2} color="#22c55e" />
+          <GridStat label="Externos" value={internalLinks.externalCount ?? 0} icon={Globe} color="#a78bfa" />
+          <GridStat label="Href vacíos" value={internalLinks.emptyHrefCount ?? 0} icon={AlertTriangle}
+            color={(internalLinks.emptyHrefCount ?? 0) > 0 ? "#ef4444" : "#22c55e"} />
+          <GridStat label="Anchors genéricos" value={internalLinks.genericAnchorCount ?? 0} icon={Type}
+            color={(internalLinks.genericAnchorCount ?? 0) > 0 ? "#f97316" : "#22c55e"} />
+          <GridStat label="Nofollow" value={internalLinks.nofollowCount ?? 0} icon={Eye} color="#eab308" />
+          <GridStat label="Externos sin noopener" value={internalLinks.externalWithoutNoopener ?? 0} icon={Shield}
+            color={(internalLinks.externalWithoutNoopener ?? 0) > 0 ? "#ef4444" : "#22c55e"} />
+        </div>
+      </Section>
+
+      {/* ── 6. Optimización de Imágenes (v3) ──────────────────────────── */}
+      <Section title="Optimización de Imágenes" icon={ImageIcon} iconColor="#f59e0b">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24, marginBottom: 20 }}>
+          <ScoreCircle score={imageOpt.score ?? 0} size={90} strokeWidth={7} label="Imágenes" />
+          <MetricCard icon={ImageIcon} label="Total imágenes" value={imageOpt.totalImages ?? 0} color="#f59e0b" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+          <GridStat label="Sin carga diferida" value={imageOpt.withoutLazy ?? 0} icon={Eye}
+            color={(imageOpt.withoutLazy ?? 0) > 0 ? "#f97316" : "#22c55e"} />
+          <GridStat label="Formato legado" value={imageOpt.legacyFormatCount ?? 0} icon={ImageIcon}
+            color={(imageOpt.legacyFormatCount ?? 0) > 0 ? "#f97316" : "#22c55e"} />
+          <GridStat label="Sin dimensiones" value={imageOpt.withoutDimensions ?? 0} icon={Hash}
+            color={(imageOpt.withoutDimensions ?? 0) > 0 ? "#eab308" : "#22c55e"} />
+          <GridStat label="Sin srcset" value={imageOpt.withoutSrcset ?? 0} icon={Smartphone}
+            color={(imageOpt.withoutSrcset ?? 0) > 0 ? "#eab308" : "#22c55e"} />
+        </div>
+      </Section>
+
+      {/* ── 7. Contenido y SEO ────────────────────────────────────────── */}
+      <Section title="Contenido y SEO" icon={FileText} iconColor="#f59e0b">
+        {/* Meta tags */}
+        <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 14, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+          Meta Tags
+        </h4>
+
+        {/* Title */}
+        <div style={{
+          background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 16px",
+          marginBottom: 10, border: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Title</span>
+            <StatusBadge
+              label={`${meta.titleLength ?? 0} chars — ${meta.titleStatus || "N/A"}`}
+              color={meta.titleStatus === "OK" || meta.titleStatus === "Óptimo" ? "#22c55e" : meta.titleStatus === "Corto" ? "#eab308" : "#f97316"}
+            />
+          </div>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", margin: 0, wordBreak: "break-word" }}>
+            {meta.title || "—"}
+          </p>
+        </div>
+
+        {/* Description */}
+        <div style={{
+          background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 16px",
+          marginBottom: 16, border: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Description</span>
+            <StatusBadge
+              label={`${meta.descriptionLength ?? 0} chars — ${meta.descriptionStatus || "N/A"}`}
+              color={meta.descriptionStatus === "OK" || meta.descriptionStatus === "Óptima" ? "#22c55e" : meta.descriptionStatus === "Corta" ? "#eab308" : "#f97316"}
+            />
+          </div>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", margin: 0, wordBreak: "break-word" }}>
+            {meta.description || "—"}
+          </p>
+        </div>
+
+        {/* Other meta checks */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 6 }}>
+          <ChecklistItem checked={meta.hasCanonical} label="Canonical URL" />
+          <ChecklistItem checked={meta.hasOgTags} label="Open Graph Tags"
+            detail={meta.ogTagsList?.length ? meta.ogTagsList.join(", ") : null} />
+          <ChecklistItem checked={meta.hasTwitterCards} label="Twitter Cards" />
+          <ChecklistItem checked={meta.hasLang} label="Atributo lang"
+            detail={meta.langValue ? `(${meta.langValue})` : null} />
+          <ChecklistItem checked={meta.hasViewport} label="Meta viewport" />
+        </div>
+
+        {/* Content metrics */}
+        <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 24, marginBottom: 14, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+          Métricas de Contenido
+        </h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+          <MetricCard icon={BookOpen} label="Palabras" value={content?.wordCount ?? 0} color="#60a5fa" />
+          <MetricCard icon={Target} label="BLUF Score" value={content?.blufScore != null ? content.blufScore.toFixed(0) : "—"} color={getScoreColor(content?.blufScore ?? 0)} />
+          <MetricCard icon={Hash} label="Estadísticas" value={content?.statsCount ?? 0} color="#a78bfa" />
+          <MetricCard icon={ListChecks} label="Escaneabilidad" value={content?.isScannable ? "Sí" : "No"} color={content?.isScannable ? "#22c55e" : "#ef4444"} />
+          <MetricCard icon={FileSearch} label="Autoría" value={content?.hasAuthor ? "Sí" : "No"} color={content?.hasAuthor ? "#22c55e" : "#ef4444"} />
+          <MetricCard icon={Eye} label="BLUF Detectado" value={content?.blufDetected ? "Sí" : "No"} color={content?.blufDetected ? "#22c55e" : "#eab308"} />
+        </div>
+      </Section>
+
+      {/* ── 8. Keywords (v3) ──────────────────────────────────────────── */}
+      <Section title="Keywords" icon={Tag} iconColor="#a78bfa">
+        {/* Top Keywords */}
+        {keywords.topKeywords && keywords.topKeywords.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+              Palabras clave principales
+            </h4>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {keywords.topKeywords.map((kw, i) => (
+                <span key={i} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "rgba(167, 139, 250, 0.12)", border: "1px solid rgba(167, 139, 250, 0.25)",
+                  borderRadius: 20, padding: "5px 14px", fontSize: 13,
+                }}>
+                  <span style={{ color: "rgba(255,255,255,0.85)" }}>{kw.word}</span>
+                  <span style={{
+                    background: "rgba(167, 139, 250, 0.3)", borderRadius: 10,
+                    padding: "1px 8px", fontSize: 11, fontWeight: 700, color: "#a78bfa",
+                  }}>
+                    {kw.count}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top Bigrams */}
+        {keywords.topBigrams && keywords.topBigrams.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+              Bigramas principales
+            </h4>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {keywords.topBigrams.map((bg, i) => (
+                <span key={i} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "rgba(6, 182, 212, 0.10)", border: "1px solid rgba(6, 182, 212, 0.22)",
+                  borderRadius: 20, padding: "5px 14px", fontSize: 13,
+                }}>
+                  <span style={{ color: "rgba(255,255,255,0.85)" }}>{bg.phrase}</span>
+                  <span style={{
+                    background: "rgba(6, 182, 212, 0.3)", borderRadius: 10,
+                    padding: "1px 8px", fontSize: 11, fontWeight: 700, color: "#06b6d4",
+                  }}>
+                    {bg.count}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Title Alignment */}
+        {keywords.titleAlignmentScore != null && (
+          <div>
+            <h4 style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+              Alineación con el título
+            </h4>
+            <AnimatedBar
+              value={keywords.titleAlignmentScore} max={100}
+              color={getScoreColor(keywords.titleAlignmentScore)}
+              label="Score de alineación"
+              height={12}
+            />
+          </div>
+        )}
+      </Section>
+
+      {/* ── 9. Hreflang / i18n (v3) ──────────────────────────────────── */}
+      <Section title="Hreflang / i18n" icon={Languages} iconColor="#06b6d4">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
+          <ChecklistItem checked={hreflang.present} label="Hreflang presente" />
+          <ChecklistItem checked={hreflang.hasXDefault} label="x-default definido" />
+          <ChecklistItem checked={hreflang.isValid} label="Configuración válida" />
+        </div>
+
+        {hreflang.count != null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <Globe size={16} style={{ color: "rgba(255,255,255,0.4)" }} />
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+              Total de etiquetas hreflang: <strong style={{ color: "#06b6d4" }}>{hreflang.count}</strong>
+            </span>
+          </div>
+        )}
+
+        {hreflang.languages && hreflang.languages.length > 0 && (
+          <div>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 8, display: "block" }}>
+              Idiomas detectados:
+            </span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {hreflang.languages.map((lang, i) => (
+                <span key={i} style={{
+                  background: "rgba(6, 182, 212, 0.12)", border: "1px solid rgba(6, 182, 212, 0.25)",
+                  borderRadius: 8, padding: "4px 12px", fontSize: 13, color: "#06b6d4", fontWeight: 600,
+                }}>
+                  {lang}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ── 10. Accesibilidad ─────────────────────────────────────────── */}
+      <Section title="Accesibilidad" icon={Accessibility} iconColor="#f472b6">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24, marginBottom: 20 }}>
+          <ScoreCircle score={accessibility?.score ?? 0} size={100} strokeWidth={7} label="a11y" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, flex: 1 }}>
+            <MetricCard icon={ImageIcon} label="Imágenes totales" value={accessibility?.imagesTotal ?? 0} color="#60a5fa" />
+            <MetricCard icon={AlertTriangle} label="Sin alt text"
+              value={accessibility?.imagesWithoutAlt ?? 0}
+              color={(accessibility?.imagesWithoutAlt ?? 0) > 0 ? "#ef4444" : "#22c55e"} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 6 }}>
+          <ChecklistItem checked={accessibility?.hasLangAttribute} label="Atributo lang en HTML" />
+          <ChecklistItem checked={accessibility?.hasSkipLink} label="Enlace skip-to-content" />
+          <ChecklistItem checked={accessibility?.formsTotal > 0 && accessibility?.formsWithLabels === accessibility?.formsTotal}
+            label="Formularios con labels"
+            detail={accessibility?.formsTotal > 0 ? `${accessibility.formsWithLabels ?? 0}/${accessibility.formsTotal}` : "Sin formularios"} />
+        </div>
+      </Section>
+
+      {/* ── 11. Rendimiento (Core Web Vitals) ─────────────────────────── */}
+      <Section title="Rendimiento (Core Web Vitals)" icon={Gauge} iconColor="#06b6d4">
+        {performance?.available ? (
+          <>
+            {/* Performance Score */}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24, marginBottom: 24 }}>
+              <ScoreCircle score={performance.performanceScore ?? 0} size={100} strokeWidth={7} label="Performance" />
+            </div>
+
+            {/* CWV Metrics */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+              {/* LCP */}
+              <div style={{
+                background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "16px",
+                border: `1px solid ${getCWVColor("lcp", performance.lcp)}30`,
+              }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>LCP</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: getCWVColor("lcp", performance.lcp) }}>
+                  {formatLCP(performance.lcp)}
+                </div>
+                <div style={{ fontSize: 11, color: getCWVColor("lcp", performance.lcp), marginTop: 4 }}>
+                  {getCWVLabel("lcp", performance.lcp)}
                 </div>
               </div>
-            );
-          })}
+
+              {/* CLS */}
+              <div style={{
+                background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "16px",
+                border: `1px solid ${getCWVColor("cls", performance.cls)}30`,
+              }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>CLS</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: getCWVColor("cls", performance.cls) }}>
+                  {formatCLS(performance.cls)}
+                </div>
+                <div style={{ fontSize: 11, color: getCWVColor("cls", performance.cls), marginTop: 4 }}>
+                  {getCWVLabel("cls", performance.cls)}
+                </div>
+              </div>
+
+              {/* TBT */}
+              <div style={{
+                background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "16px",
+                border: `1px solid ${getCWVColor("tbt", performance.tbt)}30`,
+              }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>TBT</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: getCWVColor("tbt", performance.tbt) }}>
+                  {formatMs(performance.tbt)}
+                </div>
+                <div style={{ fontSize: 11, color: getCWVColor("tbt", performance.tbt), marginTop: 4 }}>
+                  {getCWVLabel("tbt", performance.tbt)}
+                </div>
+              </div>
+
+              {/* Speed Index */}
+              <div style={{
+                background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "16px",
+                border: `1px solid ${getCWVColor("speedIndex", performance.speedIndex)}30`,
+              }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Speed Index</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: getCWVColor("speedIndex", performance.speedIndex) }}>
+                  {formatMs(performance.speedIndex)}
+                </div>
+                <div style={{ fontSize: 11, color: getCWVColor("speedIndex", performance.speedIndex), marginTop: 4 }}>
+                  {getCWVLabel("speedIndex", performance.speedIndex)}
+                </div>
+              </div>
+
+              {/* TTFB */}
+              <div style={{
+                background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "16px",
+                border: `1px solid ${getCWVColor("ttfb", performance.ttfb)}30`,
+              }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>TTFB</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: getCWVColor("ttfb", performance.ttfb) }}>
+                  {formatMs(performance.ttfb)}
+                </div>
+                <div style={{ fontSize: 11, color: getCWVColor("ttfb", performance.ttfb), marginTop: 4 }}>
+                  {getCWVLabel("ttfb", performance.ttfb)}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : cwv ? (
+          /* CWV Estimate fallback */
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <Info size={16} style={{ color: "#60a5fa" }} />
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+                PageSpeed no disponible. Estimación basada en análisis del código fuente.
+              </span>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <StatusBadge
+                label={`Nivel de riesgo: ${cwv.riskLevel || "Desconocido"}`}
+                color={getRiskLevelColor(cwv.riskLevel)}
+                icon={AlertTriangle}
+              />
+            </div>
+
+            {cwv.risks && cwv.risks.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {cwv.risks.map((risk, i) => (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    background: "rgba(249, 115, 22, 0.06)", border: "1px solid rgba(249, 115, 22, 0.15)",
+                    borderRadius: 8, padding: "10px 14px",
+                  }}>
+                    <AlertTriangle size={14} style={{ color: "#f97316", flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>{risk}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* CWV Estimate details */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 16 }}>
+              <ChecklistItem checked={cwv.hasLazyImages} label="Imágenes con lazy loading" />
+              <ChecklistItem checked={cwv.hasFontDisplaySwap} label="font-display: swap" />
+              <ChecklistItem checked={cwv.hasPreconnect} label="Preconnect configurado" />
+              <ChecklistItem checked={cwv.hasPreload} label="Preload configurado" />
+              <ChecklistItem checked={cwv.renderBlockingScripts === 0} label="Sin scripts bloqueantes"
+                detail={cwv.renderBlockingScripts > 0 ? `${cwv.renderBlockingScripts} encontrados` : null} />
+              <ChecklistItem checked={cwv.largeInlineStyles === 0} label="Sin estilos inline grandes"
+                detail={cwv.largeInlineStyles > 0 ? `${cwv.largeInlineStyles} encontrados` : null} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", padding: 20, color: "rgba(255,255,255,0.4)" }}>
+            <Gauge size={32} style={{ margin: "0 auto 12px", display: "block" }} />
+            <p style={{ fontSize: 14 }}>Datos de rendimiento no disponibles para esta URL.</p>
+          </div>
+        )}
+      </Section>
+
+      {/* ── 12. Social Readiness (v3) ─────────────────────────────────── */}
+      <Section title="Social Readiness" icon={Share2} iconColor="#f472b6">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24, marginBottom: 20 }}>
+          <ScoreCircle score={social?.score ?? 0} size={90} strokeWidth={7} label="Social" />
         </div>
-      )}
+
+        {/* OG Image Preview */}
+        {social?.ogImage && (
+          <div style={{
+            marginBottom: 20, borderRadius: 12, overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)", maxWidth: 400,
+          }}>
+            <img
+              src={social.ogImage}
+              alt="Open Graph preview"
+              style={{
+                width: "100%", height: "auto", display: "block",
+                maxHeight: 220, objectFit: "cover",
+              }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+            {(social.ogImageWidth || social.ogImageHeight) && (
+              <div style={{
+                padding: "8px 12px", background: "rgba(255,255,255,0.03)",
+                fontSize: 11, color: "rgba(255,255,255,0.4)",
+              }}>
+                {social.ogImageWidth}×{social.ogImageHeight}px
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 6 }}>
+          <ChecklistItem checked={!!social?.ogImage} label="Imagen Open Graph" />
+          <ChecklistItem checked={!!social?.twitterCardType} label="Twitter Card"
+            detail={social?.twitterCardType ? `Tipo: ${social.twitterCardType}` : null} />
+          <ChecklistItem checked={social?.hasFavicon} label="Favicon" />
+          <ChecklistItem checked={social?.hasAppleTouchIcon} label="Apple Touch Icon" />
+          <ChecklistItem checked={social?.hasManifest} label="Web App Manifest" />
+          <ChecklistItem checked={social?.hasThemeColor} label="Theme Color" />
+        </div>
+      </Section>
+
+      {/* ── Footer ────────────────────────────────────────────────────── */}
+      <div style={{
+        textAlign: "center", padding: "20px 0 10px",
+        borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 8,
+      }}>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+          Kiev GEO Master v3.0 — Análisis GEO/AEO avanzado
+        </p>
+      </div>
     </div>
   );
 }

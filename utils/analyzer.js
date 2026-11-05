@@ -1,14 +1,15 @@
 import * as cheerio from "cheerio";
 
 // ============================================================================
-// KIEV GEO MASTER — Motor de Análisis v2.0
-// Análisis integral: SEO técnico, contenido, accesibilidad, GEO/AEO
+// KIEV GEO MASTER — Motor de Análisis v3.0
+// Análisis integral: SEO técnico, contenido, accesibilidad, GEO/AEO,
+// links internos, imágenes, hreflang, CWV offline, social, keywords
 // ============================================================================
 
 // --- Constantes ---
-const FETCH_TIMEOUT = 5000;       // Timeout para fetches de recursos (ms)
-const PAGESPEED_TIMEOUT = 15000;  // Timeout para PageSpeed Insights (ms)
-const GEMINI_TIMEOUT = 30000;     // Timeout para Gemini API (ms)
+const FETCH_TIMEOUT = 5000;        // Timeout para fetches de recursos (ms)
+const PAGESPEED_TIMEOUT = 20000;   // Timeout para PageSpeed Insights (ms) — v3: 15s → 20s
+const GEMINI_TIMEOUT = 45000;      // Timeout para Gemini API (ms) — v3: 30s → 45s
 const GEMINI_PRIMARY_MODEL = "gemini-2.5-flash";
 const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
 
@@ -22,6 +23,46 @@ const AI_BOTS = [
   "Bytespider",
 ];
 
+// Stop words en español e inglés para extracción de keywords
+const STOP_WORDS_ES = new Set([
+  "de", "la", "que", "el", "en", "y", "a", "los", "del", "se", "las",
+  "por", "un", "para", "con", "no", "una", "su", "al", "lo", "como",
+  "más", "pero", "sus", "le", "ya", "o", "este", "sí", "porque", "esta",
+  "entre", "cuando", "muy", "sin", "sobre", "también", "me", "hasta",
+  "hay", "donde", "quien", "desde", "todo", "nos", "durante", "todos",
+  "uno", "les", "ni", "contra", "otros", "ese", "eso", "ante", "ellos",
+  "e", "esto", "mí", "antes", "algunos", "qué", "unos", "yo", "otro",
+  "otras", "otra", "él", "tanto", "esa", "estos", "mucho", "quienes",
+  "nada", "muchos", "cual", "poco", "ella", "estar", "estas", "algunas",
+  "algo", "nosotros", "mi", "mis", "tú", "te", "ti", "tu", "tus",
+  "ellas", "nosotras", "vosotros", "vosotras", "os", "mío", "mía",
+  "ser", "es", "son", "fue", "era", "han", "ha", "está", "están",
+]);
+const STOP_WORDS_EN = new Set([
+  "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+  "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+  "this", "but", "his", "by", "from", "they", "we", "say", "her",
+  "she", "or", "an", "will", "my", "one", "all", "would", "there",
+  "their", "what", "so", "up", "out", "if", "about", "who", "get",
+  "which", "go", "me", "when", "make", "can", "like", "time", "no",
+  "just", "him", "know", "take", "people", "into", "year", "your",
+  "good", "some", "could", "them", "see", "other", "than", "then",
+  "now", "look", "only", "come", "its", "over", "think", "also",
+  "back", "after", "use", "two", "how", "our", "work", "first",
+  "well", "way", "even", "new", "want", "because", "any", "these",
+  "give", "day", "most", "us", "is", "are", "was", "were", "been",
+  "has", "had", "did", "does", "am",
+]);
+/** @type {Set<string>} Conjunto combinado de stop words */
+const ALL_STOP_WORDS = new Set([...STOP_WORDS_ES, ...STOP_WORDS_EN]);
+
+// Anchor texts genéricos que indican mala calidad de links
+const GENERIC_ANCHORS = new Set([
+  "click here", "read more", "learn more", "more", "here", "link",
+  "leer más", "ver más", "haz clic", "clic aquí", "aquí", "más info",
+  "saber más", "ver", "continuar", "seguir leyendo",
+]);
+
 // ============================================================================
 // 1. FETCHING DE RECURSOS (en paralelo)
 // ============================================================================
@@ -30,13 +71,13 @@ const AI_BOTS = [
  * Fetch seguro con timeout y manejo de errores graceful.
  * Retorna null si falla en vez de lanzar excepción.
  */
-async function safeFetch(url, options = {}) {
+const safeFetch = async (url, options = {}) => {
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(options.timeout || FETCH_TIMEOUT),
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; KievGEOMaster/2.0; +https://kiev.agency)",
+          "Mozilla/5.0 (compatible; KievGEOMaster/3.0; +https://kiev.agency)",
         ...(options.headers || {}),
       },
       redirect: "follow",
@@ -45,13 +86,13 @@ async function safeFetch(url, options = {}) {
   } catch {
     return null;
   }
-}
+};
 
 /**
  * Descarga todos los recursos necesarios en paralelo.
  * Mide la latencia de la página principal.
  */
-async function fetchAllResources(url) {
+const fetchAllResources = async (url) => {
   const parsedUrl = new URL(url);
   const origin = parsedUrl.origin;
 
@@ -88,7 +129,7 @@ async function fetchAllResources(url) {
     sitemapText,
     latencyMs,
   };
-}
+};
 
 // ============================================================================
 // 2. PARSING DE ROBOTS.TXT
@@ -98,7 +139,7 @@ async function fetchAllResources(url) {
  * Parsea robots.txt y verifica si bloquea bots de IA específicos.
  * Busca reglas Disallow: / para cada bot y para el wildcard *.
  */
-function parseRobotsTxt(robotsText) {
+const parseRobotsTxt = (robotsText) => {
   if (!robotsText) {
     return { exists: false, allowsAIBots: true, blockedBots: [] };
   }
@@ -163,12 +204,12 @@ function parseRobotsTxt(robotsText) {
     allowsAIBots: blockedBots.length === 0,
     blockedBots,
   };
-}
+};
 
 /**
  * Verifica si un bot tiene una regla Allow explícita en robots.txt
  */
-function hasExplicitAllow(robotsText, botName) {
+const hasExplicitAllow = (robotsText, botName) => {
   const lines = robotsText.split("\n").map((l) => l.trim());
   let isTargetAgent = false;
 
@@ -189,7 +230,7 @@ function hasExplicitAllow(robotsText, botName) {
     }
   }
   return false;
-}
+};
 
 // ============================================================================
 // 3. ANÁLISIS HTML CON CHEERIO
@@ -199,7 +240,7 @@ function hasExplicitAllow(robotsText, botName) {
  * Analiza el HTML completo: meta tags, headings, schemas, contenido,
  * accesibilidad y detección de SSR.
  */
-function analyzeHTML(htmlText) {
+const analyzeHTML = (htmlText) => {
   if (!htmlText) {
     return {
       meta: getEmptyMeta(),
@@ -208,6 +249,7 @@ function analyzeHTML(htmlText) {
       content: getEmptyContent(),
       accessibility: getEmptyAccessibility(),
       isSSR: false,
+      $: null,
     };
   }
 
@@ -231,13 +273,13 @@ function analyzeHTML(htmlText) {
   // --- Detección de SSR ---
   const isSSR = detectSSR($);
 
-  return { meta, headings, schemas, content, accessibility, isSSR };
-}
+  return { meta, headings, schemas, content, accessibility, isSSR, $ };
+};
 
 /**
  * Extrae y evalúa todos los meta tags relevantes.
  */
-function analyzeMetaTags($) {
+const analyzeMetaTags = ($) => {
   // Título
   const title = $("title").first().text().trim();
   const titleLength = title.length;
@@ -300,13 +342,13 @@ function analyzeMetaTags($) {
     hasViewport,
     hasCharset,
   };
-}
+};
 
 /**
  * Analiza la jerarquía de headings.
  * Válida = exactamente 1 h1 y al menos 1 h2.
  */
-function analyzeHeadings($) {
+const analyzeHeadings = ($) => {
   const h1 = $("h1").length;
   const h2 = $("h2").length;
   const h3 = $("h3").length;
@@ -314,12 +356,12 @@ function analyzeHeadings($) {
   const hasGoodHierarchy = h1 === 1 && h2 >= 1;
 
   return { h1, h2, h3, h4, hasGoodHierarchy };
-}
+};
 
 /**
  * Extrae schemas JSON-LD del HTML.
  */
-function analyzeSchemas($) {
+const analyzeSchemas = ($) => {
   const jsonLdScripts = $('script[type="application/ld+json"]');
   const types = [];
 
@@ -353,13 +395,13 @@ function analyzeSchemas($) {
   });
 
   return { count: jsonLdScripts.length, types: [...new Set(types)] };
-}
+};
 
 /**
  * Analiza el contenido textual: palabras, BLUF, datos factuales,
  * escaneabilidad y señales de autoría.
  */
-function analyzeContent($) {
+const analyzeContent = ($) => {
   // Extraer texto de elementos de contenido
   const contentElements = $("p, h1, h2, h3, h4, li");
   let fullText = "";
@@ -400,15 +442,15 @@ function analyzeContent($) {
     isScannable,
     hasAuthor,
     wordCount,
-    fullText, // Se usará internamente para Gemini
+    fullText, // Se usará internamente para Gemini y keywords
   };
-}
+};
 
 /**
  * Detecta si un párrafo sigue el patrón BLUF:
  * responde directamente, sin rodeos.
  */
-function detectBLUF(paragraph) {
+const detectBLUF = (paragraph) => {
   if (!paragraph || paragraph.length < 20) return false;
 
   // Indicadores de respuesta directa
@@ -422,12 +464,12 @@ function detectBLUF(paragraph) {
   ];
 
   return directPatterns.some((p) => p.test(paragraph));
-}
+};
 
 /**
  * Detecta señales de autoría en el HTML.
  */
-function detectAuthorSignals($) {
+const detectAuthorSignals = ($) => {
   // Buscar en meta tags
   if ($('meta[name="author"]').attr("content")) return true;
 
@@ -449,12 +491,12 @@ function detectAuthorSignals($) {
   if ($(".author, .byline, [itemprop='author']").length > 0) return true;
 
   return false;
-}
+};
 
 /**
  * Análisis de accesibilidad básico.
  */
-function analyzeAccessibility($) {
+const analyzeAccessibility = ($) => {
   // Imágenes y alt text
   const images = $("img");
   const imagesTotal = images.length;
@@ -516,20 +558,20 @@ function analyzeAccessibility($) {
     formsWithLabels,
     score: accessScore,
   };
-}
+};
 
 /**
  * Detecta si la página usa Server-Side Rendering.
  * Verifica que el body tenga contenido textual real (> 200 chars).
  */
-function detectSSR($) {
+const detectSSR = ($) => {
   // Extraer texto visible del body, excluyendo scripts y styles
   const bodyClone = $("body").clone();
   bodyClone.find("script, style, noscript").remove();
   const bodyText = bodyClone.text().replace(/\s+/g, " ").trim();
 
   return bodyText.length > 200;
-}
+};
 
 // ============================================================================
 // 4. HEADERS DE SEGURIDAD
@@ -538,7 +580,7 @@ function detectSSR($) {
 /**
  * Analiza headers de seguridad de la respuesta HTTP.
  */
-function analyzeSecurityHeaders(response, url) {
+const analyzeSecurityHeaders = (response, url) => {
   const https = url.startsWith("https");
 
   if (!response || !response.headers) {
@@ -560,7 +602,7 @@ function analyzeSecurityHeaders(response, url) {
     xFrameOptions: headers.has("x-frame-options"),
     xContentTypeOptions: headers.has("x-content-type-options"),
   };
-}
+};
 
 // ============================================================================
 // 5. ANÁLISIS DE SITEMAP
@@ -569,7 +611,7 @@ function analyzeSecurityHeaders(response, url) {
 /**
  * Parsea sitemap.xml y cuenta URLs usando regex simple.
  */
-function analyzeSitemap(sitemapText) {
+const analyzeSitemap = (sitemapText) => {
   if (!sitemapText) {
     return { exists: false, urlCount: 0 };
   }
@@ -579,7 +621,7 @@ function analyzeSitemap(sitemapText) {
   const urlCount = locMatches ? locMatches.length : 0;
 
   return { exists: true, urlCount };
-}
+};
 
 // ============================================================================
 // 6. CALIDAD DE LLMS.TXT
@@ -588,7 +630,7 @@ function analyzeSitemap(sitemapText) {
 /**
  * Evalúa la calidad del archivo llms.txt.
  */
-function analyzeLlmsTxt(llmsText) {
+const analyzeLlmsTxt = (llmsText) => {
   if (!llmsText) {
     return { exists: false, quality: null };
   }
@@ -613,10 +655,10 @@ function analyzeLlmsTxt(llmsText) {
   }
 
   return { exists: true, quality: "Básico" };
-}
+};
 
 // ============================================================================
-// 7. ANÁLISIS CON GEMINI AI
+// 7. ANÁLISIS CON GEMINI AI (v3: mejor manejo de errores)
 // ============================================================================
 
 /**
@@ -674,14 +716,85 @@ const GEMINI_RESPONSE_SCHEMA = {
 };
 
 /**
+ * Clasifica un error de la API de Gemini en un código semántico específico.
+ *
+ * @param {number|null} httpStatus - Código HTTP de la respuesta (o null si no hubo respuesta)
+ * @param {Error|null} err - Error capturado durante la llamada
+ * @returns {{ errorCode: string, errorMessage: string, httpStatus: number|null }}
+ */
+const classifyGeminiError = (httpStatus, err) => {
+  // Timeout del AbortSignal
+  if (err && (err.name === "TimeoutError" || err.name === "AbortError")) {
+    return {
+      errorCode: "timeout",
+      errorMessage: `La solicitud a Gemini excedió el timeout de ${GEMINI_TIMEOUT}ms`,
+      httpStatus: null,
+    };
+  }
+
+  // Errores basados en HTTP status
+  if (httpStatus === 402) {
+    return {
+      errorCode: "credits_exhausted",
+      errorMessage: "Créditos de la API de Gemini agotados (HTTP 402)",
+      httpStatus: 402,
+    };
+  }
+  if (httpStatus === 429) {
+    return {
+      errorCode: "quota_exceeded",
+      errorMessage: "Cuota de la API de Gemini excedida (HTTP 429). Reintentar más tarde.",
+      httpStatus: 429,
+    };
+  }
+  if (httpStatus === 404) {
+    return {
+      errorCode: "model_not_found",
+      errorMessage: `Modelo de Gemini no encontrado (HTTP 404)`,
+      httpStatus: 404,
+    };
+  }
+  if (httpStatus === 403) {
+    return {
+      errorCode: "api_key_invalid",
+      errorMessage: "API key de Gemini inválida o sin permisos (HTTP 403)",
+      httpStatus: 403,
+    };
+  }
+
+  // Error genérico con status HTTP
+  if (httpStatus && httpStatus >= 400) {
+    return {
+      errorCode: "unknown",
+      errorMessage: `Error HTTP ${httpStatus} de la API de Gemini`,
+      httpStatus,
+    };
+  }
+
+  // Error de red u otro
+  return {
+    errorCode: "unknown",
+    errorMessage: err?.message || "Error desconocido al contactar Gemini",
+    httpStatus: null,
+  };
+};
+
+/**
  * Llama a la API de Gemini para análisis semántico profundo.
  * Usa structured output para evitar parsing manual de JSON.
  * Intenta modelo primario, luego fallback.
+ *
+ * v3: Retorna códigos de error específicos y el status HTTP.
  */
-async function analyzeWithGemini(url, textContent, metaSummary) {
+const analyzeWithGemini = async (url, textContent, metaSummary) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return { success: false, error: "GEMINI_API_KEY no configurada" };
+    return {
+      success: false,
+      error: "GEMINI_API_KEY no configurada",
+      errorCode: "api_key_missing",
+      httpStatus: null,
+    };
   }
 
   // Limitar contenido a 5000 caracteres
@@ -710,6 +823,8 @@ Evalúa todos los campos con precisión. Para critical_findings, proporciona 3-5
 
   // Intentar con modelo primario, luego fallback
   const models = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+  /** @type {{ errorCode: string, errorMessage: string, httpStatus: number|null }|null} */
+  let lastError = null;
 
   for (const model of models) {
     try {
@@ -732,6 +847,7 @@ Evalúa todos los campos con precisión. Para critical_findings, proporciona 3-5
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Gemini ${model} error:`, response.status, errorText);
+        lastError = classifyGeminiError(response.status, null);
         continue; // Intentar fallback
       }
 
@@ -740,6 +856,7 @@ Evalúa todos los campos con precisión. Para critical_findings, proporciona 3-5
 
       if (!text) {
         console.error(`Gemini ${model}: respuesta vacía`);
+        lastError = { errorCode: "unknown", errorMessage: `Gemini ${model}: respuesta vacía`, httpStatus: null };
         continue;
       }
 
@@ -748,20 +865,23 @@ Evalúa todos los campos con precisión. Para critical_findings, proporciona 3-5
       return { success: true, data: parsed, model };
     } catch (err) {
       console.error(`Gemini ${model} falló:`, err.message);
+      lastError = classifyGeminiError(null, err);
       continue;
     }
   }
 
   return {
     success: false,
-    error: "Ambos modelos de Gemini fallaron",
+    error: lastError?.errorMessage || "Ambos modelos de Gemini fallaron",
+    errorCode: lastError?.errorCode || "unknown",
+    httpStatus: lastError?.httpStatus || null,
   };
-}
+};
 
 /**
  * Genera scores heurísticos cuando Gemini no está disponible.
  */
-function generateHeuristicScores(content, meta, headings) {
+const generateHeuristicScores = (content, meta, headings) => {
   // SoM Simulation basado en señales heurísticas
   let somScore = 20; // Base baja
 
@@ -845,19 +965,25 @@ function generateHeuristicScores(content, meta, headings) {
         : "Open Graph tags presentes",
     ],
   };
-}
+};
 
 // ============================================================================
-// 8. PAGESPEED INSIGHTS
+// 8. PAGESPEED INSIGHTS (v3: soporte para PAGESPEED_API_KEY)
 // ============================================================================
 
 /**
- * Obtiene métricas de PageSpeed Insights (no bloquea el análisis principal).
- * API pública, no requiere key para uso básico.
+ * Obtiene métricas de PageSpeed Insights.
+ * v3: Usa PAGESPEED_API_KEY si está disponible para evitar rate limiting.
  */
-async function fetchPageSpeedInsights(url) {
+const fetchPageSpeedInsights = async (url) => {
   try {
-    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&strategy=mobile`;
+    let apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&strategy=mobile`;
+
+    // v3: Agregar API key si está configurada para evitar rate limiting
+    const pageSpeedKey = process.env.PAGESPEED_API_KEY;
+    if (pageSpeedKey) {
+      apiUrl += `&key=${pageSpeedKey}`;
+    }
 
     const response = await fetch(apiUrl, {
       signal: AbortSignal.timeout(PAGESPEED_TIMEOUT),
@@ -898,10 +1024,452 @@ async function fetchPageSpeedInsights(url) {
   } catch {
     return { available: false };
   }
-}
+};
 
 // ============================================================================
-// 9. CÓMPUTO DE SCORES
+// 9. NUEVOS MÓDULOS DE ANÁLISIS v3
+// ============================================================================
+
+// ---- 9a. Análisis de Links Internos/Externos ----
+
+/**
+ * Analiza la distribución y calidad de los links de la página.
+ * Clasifica en internos vs externos, detecta problemas comunes
+ * como links vacíos, anchor text genérico y falta de rel="noopener".
+ *
+ * @param {import('cheerio').CheerioAPI} $ - Instancia de Cheerio cargada con el HTML
+ * @param {string} url - URL de la página analizada (para determinar el origin)
+ * @returns {{ totalLinks: number, internalCount: number, externalCount: number, emptyHrefCount: number, genericAnchorCount: number, nofollowCount: number, externalWithoutNoopener: number }}
+ */
+const analyzeInternalLinks = ($, url) => {
+  let origin = "";
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    // Si la URL no es parseable, todo es "externo"
+  }
+
+  const links = $("a");
+  let totalLinks = 0;
+  let internalCount = 0;
+  let externalCount = 0;
+  let emptyHrefCount = 0;
+  let genericAnchorCount = 0;
+  let nofollowCount = 0;
+  let externalWithoutNoopener = 0;
+
+  links.each((_, el) => {
+    totalLinks++;
+    const href = ($(el).attr("href") || "").trim();
+    const rel = ($(el).attr("rel") || "").toLowerCase();
+    const anchorText = $(el).text().trim().toLowerCase();
+
+    // Links vacíos o javascript:void(0)
+    if (!href || href === "#" || href.startsWith("javascript:")) {
+      emptyHrefCount++;
+      return; // continuar al siguiente
+    }
+
+    // Anchor text genérico
+    if (anchorText && GENERIC_ANCHORS.has(anchorText)) {
+      genericAnchorCount++;
+    }
+
+    // Nofollow
+    if (rel.includes("nofollow")) {
+      nofollowCount++;
+    }
+
+    // Clasificar interno vs externo
+    let isExternal = false;
+    try {
+      if (href.startsWith("http://") || href.startsWith("https://")) {
+        const linkOrigin = new URL(href).origin;
+        isExternal = linkOrigin !== origin;
+      }
+      // Links relativos, mailto:, tel: etc. se consideran internos
+    } catch {
+      // URL inválida, se ignora como interna
+    }
+
+    if (isExternal) {
+      externalCount++;
+      // Verificar si tiene rel="noopener noreferrer"
+      if (!rel.includes("noopener") || !rel.includes("noreferrer")) {
+        externalWithoutNoopener++;
+      }
+    } else {
+      internalCount++;
+    }
+  });
+
+  return {
+    totalLinks,
+    internalCount,
+    externalCount,
+    emptyHrefCount,
+    genericAnchorCount,
+    nofollowCount,
+    externalWithoutNoopener,
+  };
+};
+
+// ---- 9b. Optimización de Imágenes ----
+
+/**
+ * Analiza la optimización de imágenes en la página.
+ * Verifica lazy loading, formatos modernos, dimensiones explícitas y responsividad.
+ *
+ * @param {import('cheerio').CheerioAPI} $ - Instancia de Cheerio
+ * @returns {{ totalImages: number, withoutLazy: number, legacyFormatCount: number, withoutDimensions: number, withoutSrcset: number, score: number }}
+ */
+const analyzeImageOptimization = ($) => {
+  const images = $("img");
+  const totalImages = images.length;
+  let withoutLazy = 0;
+  let legacyFormatCount = 0;
+  let withoutDimensions = 0;
+  let withoutSrcset = 0;
+
+  /** Extensiones de formatos legacy */
+  const legacyExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff"]);
+
+  images.each((i, el) => {
+    const src = ($(el).attr("src") || "").toLowerCase();
+    const loading = ($(el).attr("loading") || "").toLowerCase();
+    const width = $(el).attr("width");
+    const height = $(el).attr("height");
+    const srcset = $(el).attr("srcset");
+    const sizes = $(el).attr("sizes");
+
+    // Las primeras 2 imágenes deberían ser eager (above the fold), el resto lazy
+    if (i >= 2 && loading !== "lazy") {
+      withoutLazy++;
+    }
+
+    // Detectar formatos legacy por extensión del src
+    if (src) {
+      const extMatch = src.match(/\.([a-z]+)(\?|$)/);
+      if (extMatch) {
+        const ext = `.${extMatch[1]}`;
+        if (legacyExtensions.has(ext)) {
+          legacyFormatCount++;
+        }
+      }
+    }
+
+    // Verificar dimensiones explícitas (previene CLS)
+    if (!width || !height) {
+      withoutDimensions++;
+    }
+
+    // Verificar responsive images
+    if (!srcset && !sizes) {
+      withoutSrcset++;
+    }
+  });
+
+  // Score de optimización de imágenes (0-100)
+  let score = 100;
+  if (totalImages > 0) {
+    const lazyPenalty = totalImages > 2 ? (withoutLazy / Math.max(1, totalImages - 2)) * 25 : 0;
+    const formatPenalty = (legacyFormatCount / totalImages) * 25;
+    const dimensionPenalty = (withoutDimensions / totalImages) * 25;
+    const srcsetPenalty = (withoutSrcset / totalImages) * 25;
+    score = Math.max(0, Math.round(100 - lazyPenalty - formatPenalty - dimensionPenalty - srcsetPenalty));
+  }
+
+  return {
+    totalImages,
+    withoutLazy,
+    legacyFormatCount,
+    withoutDimensions,
+    withoutSrcset,
+    score,
+  };
+};
+
+// ---- 9c. Análisis de Hreflang ----
+
+/**
+ * Analiza las etiquetas hreflang de la página para internacionalización.
+ * Verifica presencia, idiomas declarados, x-default y formato correcto.
+ *
+ * @param {import('cheerio').CheerioAPI} $ - Instancia de Cheerio
+ * @returns {{ present: boolean, languages: string[], hasXDefault: boolean, isValid: boolean, count: number }}
+ */
+const analyzeHreflang = ($) => {
+  const hreflangTags = $('link[rel="alternate"][hreflang]');
+  const count = hreflangTags.length;
+
+  if (count === 0) {
+    return {
+      present: false,
+      languages: [],
+      hasXDefault: false,
+      isValid: true, // No hay tags, no hay error de formato
+      count: 0,
+    };
+  }
+
+  const languages = [];
+  let hasXDefault = false;
+  let isValid = true;
+
+  // Regex para validar formato de hreflang (ISO 639-1, opcionalmente ISO 3166-1)
+  const hreflangRegex = /^[a-z]{2}(-[A-Za-z]{2,4})?$/;
+
+  hreflangTags.each((_, el) => {
+    const lang = ($(el).attr("hreflang") || "").trim();
+    const href = ($(el).attr("href") || "").trim();
+
+    if (lang.toLowerCase() === "x-default") {
+      hasXDefault = true;
+    } else if (lang) {
+      languages.push(lang);
+      // Validar formato
+      if (!hreflangRegex.test(lang)) {
+        isValid = false;
+      }
+    }
+
+    // Un hreflang sin href es inválido
+    if (!href) {
+      isValid = false;
+    }
+  });
+
+  return {
+    present: true,
+    languages: [...new Set(languages)],
+    hasXDefault,
+    isValid,
+    count,
+  };
+};
+
+// ---- 9d. Estimación Offline de Core Web Vitals ----
+
+/**
+ * Estima el riesgo de Core Web Vitals cuando PageSpeed no está disponible.
+ * Analiza el HTML estático en busca de señales de problemas de rendimiento.
+ *
+ * @param {import('cheerio').CheerioAPI} $ - Instancia de Cheerio
+ * @param {string} htmlText - Texto HTML completo de la página
+ * @returns {{ riskLevel: string, risks: string[], renderBlockingScripts: number, largeInlineStyles: number, hasLazyImages: boolean, hasFontDisplaySwap: boolean, hasPreconnect: boolean, hasPreload: boolean }}
+ */
+const estimateCWVOffline = ($, htmlText) => {
+  const risks = [];
+
+  // 1. Scripts en <head> sin async/defer (render-blocking)
+  const headScripts = $("head script[src]");
+  let renderBlockingScripts = 0;
+  headScripts.each((_, el) => {
+    const hasAsync = $(el).attr("async") !== undefined;
+    const hasDefer = $(el).attr("defer") !== undefined;
+    const type = ($(el).attr("type") || "").toLowerCase();
+    // module scripts se ejecutan defer por defecto
+    if (!hasAsync && !hasDefer && type !== "module") {
+      renderBlockingScripts++;
+    }
+  });
+  if (renderBlockingScripts > 0) {
+    risks.push(`${renderBlockingScripts} script(s) render-blocking en <head> sin async/defer`);
+  }
+
+  // 2. Inline styles grandes (>500 caracteres)
+  let largeInlineStyles = 0;
+  $("style").each((_, el) => {
+    const content = $(el).html() || "";
+    if (content.length > 500) {
+      largeInlineStyles++;
+    }
+  });
+  if (largeInlineStyles > 0) {
+    risks.push(`${largeInlineStyles} bloque(s) <style> inline con >500 caracteres`);
+  }
+
+  // 3. Lazy loading en imágenes
+  const totalImgs = $("img").length;
+  const lazyImgs = $('img[loading="lazy"]').length;
+  const hasLazyImages = lazyImgs > 0;
+  if (totalImgs > 2 && lazyImgs === 0) {
+    risks.push("Ninguna imagen usa loading='lazy' — riesgo de carga lenta");
+  }
+
+  // 4. font-display: swap
+  const hasFontDisplaySwap = htmlText.includes("font-display") &&
+    /font-display\s*:\s*swap/i.test(htmlText);
+  if (!hasFontDisplaySwap && (htmlText.includes("@font-face") || $('link[href*="fonts"]').length > 0)) {
+    risks.push("No se detecta font-display: swap — riesgo de FOIT/FOUT");
+  }
+
+  // 5. Preconnect y preload hints
+  const hasPreconnect = $('link[rel="preconnect"]').length > 0;
+  const hasPreload = $('link[rel="preload"]').length > 0;
+  if (!hasPreconnect) {
+    risks.push("Sin <link rel='preconnect'> — los recursos de terceros cargan más lento");
+  }
+  if (!hasPreload) {
+    risks.push("Sin <link rel='preload'> — recursos críticos no priorizados");
+  }
+
+  // Determinar nivel de riesgo
+  let riskLevel = "low";
+  if (risks.length >= 4) riskLevel = "high";
+  else if (risks.length >= 2) riskLevel = "medium";
+
+  return {
+    riskLevel,
+    risks,
+    renderBlockingScripts,
+    largeInlineStyles,
+    hasLazyImages,
+    hasFontDisplaySwap,
+    hasPreconnect,
+    hasPreload,
+  };
+};
+
+// ---- 9e. Social Readiness ----
+
+/**
+ * Evalúa la preparación de la página para compartirse en redes sociales.
+ * Verifica Open Graph, Twitter Cards, favicon, manifest, etc.
+ *
+ * @param {import('cheerio').CheerioAPI} $ - Instancia de Cheerio
+ * @returns {{ ogImage: string|null, ogImageWidth: string|null, ogImageHeight: string|null, twitterCardType: string|null, hasFavicon: boolean, hasAppleTouchIcon: boolean, hasManifest: boolean, hasThemeColor: boolean, score: number }}
+ */
+const analyzeSocialReadiness = ($) => {
+  // og:image
+  const ogImage = $('meta[property="og:image"]').attr("content") || null;
+  const ogImageWidth = $('meta[property="og:image:width"]').attr("content") || null;
+  const ogImageHeight = $('meta[property="og:image:height"]').attr("content") || null;
+
+  // Twitter card type
+  const twitterCardType = $('meta[name="twitter:card"]').attr("content") || null;
+
+  // Favicon
+  const hasFavicon =
+    $('link[rel="icon"]').length > 0 ||
+    $('link[rel="shortcut icon"]').length > 0;
+
+  // Apple touch icon
+  const hasAppleTouchIcon = $('link[rel="apple-touch-icon"]').length > 0;
+
+  // Web app manifest
+  const hasManifest = $('link[rel="manifest"]').length > 0;
+
+  // Theme color
+  const hasThemeColor = $('meta[name="theme-color"]').length > 0;
+
+  // Score de social readiness (0-100)
+  let score = 0;
+  if (ogImage) score += 25;           // og:image es lo más importante
+  if (ogImageWidth && ogImageHeight) score += 5;
+  if (twitterCardType) score += 15;
+  if (hasFavicon) score += 15;
+  if (hasAppleTouchIcon) score += 10;
+  if (hasManifest) score += 15;
+  if (hasThemeColor) score += 5;
+  // Bonus por tener OG básico completo
+  const hasOgTitle = $('meta[property="og:title"]').length > 0;
+  const hasOgDesc = $('meta[property="og:description"]').length > 0;
+  if (hasOgTitle && hasOgDesc && ogImage) score += 10;
+
+  return {
+    ogImage,
+    ogImageWidth,
+    ogImageHeight,
+    twitterCardType,
+    hasFavicon,
+    hasAppleTouchIcon,
+    hasManifest,
+    hasThemeColor,
+    score: Math.min(100, score),
+  };
+};
+
+// ---- 9f. Extracción de Keywords ----
+
+/**
+ * Extrae keywords y bigrams del contenido textual de la página.
+ * Elimina stop words en español e inglés, calcula frecuencias,
+ * y evalúa la alineación entre keywords del título y el cuerpo.
+ *
+ * @param {string} fullText - Texto completo extraído de la página
+ * @param {string} title - Título de la página
+ * @returns {{ topKeywords: Array<{word: string, count: number}>, topBigrams: Array<{phrase: string, count: number}>, titleAlignmentScore: number }}
+ */
+const extractKeywords = (fullText, title) => {
+  if (!fullText || fullText.length < 10) {
+    return {
+      topKeywords: [],
+      topBigrams: [],
+      titleAlignmentScore: 0,
+    };
+  }
+
+  // Tokenizar: solo letras y números, mínimo 3 caracteres
+  const tokens = fullText
+    .toLowerCase()
+    .replace(/[^a-záéíóúüñ0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !ALL_STOP_WORDS.has(w));
+
+  // Frecuencia de palabras individuales
+  /** @type {Map<string, number>} */
+  const wordFreq = new Map();
+  for (const token of tokens) {
+    wordFreq.set(token, (wordFreq.get(token) || 0) + 1);
+  }
+
+  // Top 10 keywords
+  const topKeywords = [...wordFreq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([word, count]) => ({ word, count }));
+
+  // Bigrams (pares de palabras consecutivas)
+  /** @type {Map<string, number>} */
+  const bigramFreq = new Map();
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const bigram = `${tokens[i]} ${tokens[i + 1]}`;
+    bigramFreq.set(bigram, (bigramFreq.get(bigram) || 0) + 1);
+  }
+
+  // Top 5 bigrams (mínimo 2 ocurrencias para ser relevante)
+  const topBigrams = [...bigramFreq.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([phrase, count]) => ({ phrase, count }));
+
+  // Title alignment: ¿cuántas palabras del título aparecen en el body?
+  let titleAlignmentScore = 0;
+  if (title) {
+    const titleTokens = title
+      .toLowerCase()
+      .replace(/[^a-záéíóúüñ0-9\s]/gi, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !ALL_STOP_WORDS.has(w));
+
+    if (titleTokens.length > 0) {
+      const bodyTokenSet = new Set(tokens);
+      const matchCount = titleTokens.filter((t) => bodyTokenSet.has(t)).length;
+      titleAlignmentScore = Math.round((matchCount / titleTokens.length) * 100);
+    }
+  }
+
+  return {
+    topKeywords,
+    topBigrams,
+    titleAlignmentScore,
+  };
+};
+
+// ============================================================================
+// 10. CÓMPUTO DE SCORES (v3: incorpora nuevos módulos)
 // ============================================================================
 
 /**
@@ -910,49 +1478,85 @@ async function fetchPageSpeedInsights(url) {
  * - Contenido & SEO (25%)
  * - Accesibilidad (10%)
  * - GEO/AEO (40%)
+ *
+ * v3: Incorpora imageOptimization en Technical, internalLinks y social en Content & SEO.
+ *
+ * @param {Object} technical - Datos técnicos de la página
+ * @param {Object} content - Datos de contenido y meta
+ * @param {Object} accessibility - Datos de accesibilidad
+ * @param {Object} metrics2026 - Métricas GEO/AEO (de Gemini o heurísticas)
+ * @param {Object} imageOptimization - Resultado de analyzeImageOptimization
+ * @param {Object} internalLinks - Resultado de analyzeInternalLinks
+ * @param {Object} social - Resultado de analyzeSocialReadiness
+ * @returns {number} Score final 0-100
  */
-function computeOverallScore(technical, content, accessibility, metrics2026) {
+const computeOverallScore = (technical, content, accessibility, metrics2026, imageOptimization, internalLinks, social) => {
   // --- Pilar 1: Infraestructura Técnica (25%) ---
   let techScore = 0;
   const techMax = 100;
-  if (technical.robotsTxt) techScore += 12;
-  if (technical.robotsTxtDetails.allowsAIBots) techScore += 8;
-  if (technical.llmsTxt) techScore += 10;
+  if (technical.robotsTxt) techScore += 10;
+  if (technical.robotsTxtDetails.allowsAIBots) techScore += 7;
+  if (technical.llmsTxt) techScore += 8;
   if (technical.llmsTxtQuality === "Completo") techScore += 5;
-  if (technical.schemasFound > 0) techScore += 10;
-  if (technical.hasGoodHierarchy) techScore += 10;
-  if (technical.isSSR) techScore += 10;
-  if (technical.https) techScore += 10;
-  // Headers de seguridad (hasta 15 puntos)
+  if (technical.schemasFound > 0) techScore += 8;
+  if (technical.hasGoodHierarchy) techScore += 8;
+  if (technical.isSSR) techScore += 8;
+  if (technical.https) techScore += 8;
+  // Headers de seguridad (hasta 12 puntos)
   const secHeaders = technical.securityHeaders;
-  if (secHeaders.hsts) techScore += 4;
-  if (secHeaders.csp) techScore += 4;
-  if (secHeaders.xFrameOptions) techScore += 4;
+  if (secHeaders.hsts) techScore += 3;
+  if (secHeaders.csp) techScore += 3;
+  if (secHeaders.xFrameOptions) techScore += 3;
   if (secHeaders.xContentTypeOptions) techScore += 3;
-  if (technical.sitemapXml) techScore += 10;
+  if (technical.sitemapXml) techScore += 8;
+  // v3: Image optimization contribuye al score técnico (hasta 14 puntos)
+  if (imageOptimization) {
+    techScore += Math.round((imageOptimization.score / 100) * 14);
+  }
 
   techScore = Math.min(techMax, techScore);
 
   // --- Pilar 2: Contenido & SEO (25%) ---
   let contentScore = 0;
-  // Meta completitud (30 puntos)
-  if (content.meta.titleStatus === "good") contentScore += 10;
-  else if (content.meta.titleStatus === "warn") contentScore += 5;
-  if (content.meta.descriptionStatus === "good") contentScore += 10;
-  else if (content.meta.descriptionStatus === "warn") contentScore += 5;
+  // Meta completitud (25 puntos)
+  if (content.meta.titleStatus === "good") contentScore += 8;
+  else if (content.meta.titleStatus === "warn") contentScore += 4;
+  if (content.meta.descriptionStatus === "good") contentScore += 8;
+  else if (content.meta.descriptionStatus === "warn") contentScore += 4;
   if (content.meta.hasCanonical) contentScore += 5;
-  if (content.meta.hasOgTags) contentScore += 5;
-  // BLUF (15 puntos)
-  contentScore += Math.round((content.blufScore / 10) * 15);
-  // Datos factuales (15 puntos)
-  contentScore += Math.min(15, content.statsCount * 3);
-  // Escaneabilidad (10 puntos)
-  if (content.isScannable) contentScore += 10;
-  // Autoría (10 puntos)
-  if (content.hasAuthor) contentScore += 10;
-  // Palabras adecuadas (10 puntos)
-  if (content.wordCount >= 300) contentScore += 5;
-  if (content.wordCount >= 800) contentScore += 5;
+  if (content.meta.hasOgTags) contentScore += 4;
+  // BLUF (12 puntos)
+  contentScore += Math.round((content.blufScore / 10) * 12);
+  // Datos factuales (12 puntos)
+  contentScore += Math.min(12, content.statsCount * 3);
+  // Escaneabilidad (8 puntos)
+  if (content.isScannable) contentScore += 8;
+  // Autoría (8 puntos)
+  if (content.hasAuthor) contentScore += 8;
+  // Palabras adecuadas (8 puntos)
+  if (content.wordCount >= 300) contentScore += 4;
+  if (content.wordCount >= 800) contentScore += 4;
+  // v3: Internal links quality (hasta 10 puntos)
+  if (internalLinks) {
+    let linkScore = 10;
+    if (internalLinks.totalLinks > 0) {
+      // Penalizar links vacíos
+      if (internalLinks.emptyHrefCount > 3) linkScore -= 3;
+      // Penalizar anchor text genérico
+      if (internalLinks.genericAnchorCount > 5) linkScore -= 3;
+      // Penalizar links externos sin noopener
+      if (internalLinks.externalWithoutNoopener > 3) linkScore -= 2;
+      // Bonus por tener balance de links
+      if (internalLinks.internalCount > 0 && internalLinks.externalCount > 0) linkScore += 2;
+    } else {
+      linkScore = 2; // Sin links = malo
+    }
+    contentScore += Math.max(0, Math.min(10, linkScore));
+  }
+  // v3: Social readiness (hasta 7 puntos — peso menor)
+  if (social) {
+    contentScore += Math.round((social.score / 100) * 7);
+  }
 
   contentScore = Math.min(100, contentScore);
 
@@ -980,54 +1584,48 @@ function computeOverallScore(technical, content, accessibility, metrics2026) {
   );
 
   return Math.max(0, Math.min(100, overallScore));
-}
+};
 
 // ============================================================================
 // HELPERS (objetos vacíos)
 // ============================================================================
 
-function getEmptyMeta() {
-  return {
-    title: "",
-    titleLength: 0,
-    titleStatus: "error",
-    description: "",
-    descriptionLength: 0,
-    descriptionStatus: "error",
-    hasCanonical: false,
-    hasOgTags: false,
-    ogTagsList: [],
-    hasTwitterCards: false,
-    hasLang: false,
-    langValue: "",
-    hasViewport: false,
-    hasCharset: false,
-  };
-}
+const getEmptyMeta = () => ({
+  title: "",
+  titleLength: 0,
+  titleStatus: "error",
+  description: "",
+  descriptionLength: 0,
+  descriptionStatus: "error",
+  hasCanonical: false,
+  hasOgTags: false,
+  ogTagsList: [],
+  hasTwitterCards: false,
+  hasLang: false,
+  langValue: "",
+  hasViewport: false,
+  hasCharset: false,
+});
 
-function getEmptyContent() {
-  return {
-    blufScore: 0,
-    blufDetected: false,
-    statsCount: 0,
-    isScannable: false,
-    hasAuthor: false,
-    wordCount: 0,
-    fullText: "",
-  };
-}
+const getEmptyContent = () => ({
+  blufScore: 0,
+  blufDetected: false,
+  statsCount: 0,
+  isScannable: false,
+  hasAuthor: false,
+  wordCount: 0,
+  fullText: "",
+});
 
-function getEmptyAccessibility() {
-  return {
-    imagesTotal: 0,
-    imagesWithoutAlt: 0,
-    hasLangAttribute: false,
-    hasSkipLink: false,
-    formsTotal: 0,
-    formsWithLabels: 0,
-    score: 0,
-  };
-}
+const getEmptyAccessibility = () => ({
+  imagesTotal: 0,
+  imagesWithoutAlt: 0,
+  hasLangAttribute: false,
+  hasSkipLink: false,
+  formsTotal: 0,
+  formsWithLabels: 0,
+  score: 0,
+});
 
 // ============================================================================
 // FUNCIÓN PRINCIPAL: analyzeWebsite
@@ -1038,7 +1636,7 @@ function getEmptyAccessibility() {
  * Ejecuta fetches en paralelo y combina resultados.
  *
  * @param {string} url - URL completa del sitio a analizar
- * @returns {Object} - Resultado completo del análisis
+ * @returns {Promise<Object>} - Resultado completo del análisis
  */
 export async function analyzeWebsite(url) {
   // --- Paso 1: Fetch de todos los recursos en paralelo ---
@@ -1051,8 +1649,9 @@ export async function analyzeWebsite(url) {
   const { htmlText, htmlResponse, robotsText, llmsText, sitemapText, latencyMs } =
     resources;
 
-  // --- Paso 2: Análisis de HTML ---
+  // --- Paso 2: Análisis de HTML (retorna $ para reutilizar en módulos v3) ---
   const htmlAnalysis = analyzeHTML(htmlText);
+  const $ = htmlAnalysis.$;
 
   // --- Paso 3: Robots.txt ---
   const robotsResult = parseRobotsTxt(robotsText);
@@ -1066,9 +1665,43 @@ export async function analyzeWebsite(url) {
   // --- Paso 6: Headers de seguridad ---
   const securityHeaders = analyzeSecurityHeaders(htmlResponse, url);
 
-  // --- Paso 7: Análisis con Gemini AI ---
+  // --- Paso 7: Nuevos módulos v3 (usan $ de Cheerio) ---
+  const internalLinksResult = $ ? analyzeInternalLinks($, url) : {
+    totalLinks: 0, internalCount: 0, externalCount: 0,
+    emptyHrefCount: 0, genericAnchorCount: 0, nofollowCount: 0,
+    externalWithoutNoopener: 0,
+  };
+
+  const imageOptimizationResult = $ ? analyzeImageOptimization($) : {
+    totalImages: 0, withoutLazy: 0, legacyFormatCount: 0,
+    withoutDimensions: 0, withoutSrcset: 0, score: 0,
+  };
+
+  const hreflangResult = $ ? analyzeHreflang($) : {
+    present: false, languages: [], hasXDefault: false, isValid: true, count: 0,
+  };
+
+  const socialResult = $ ? analyzeSocialReadiness($) : {
+    ogImage: null, ogImageWidth: null, ogImageHeight: null,
+    twitterCardType: null, hasFavicon: false, hasAppleTouchIcon: false,
+    hasManifest: false, hasThemeColor: false, score: 0,
+  };
+
+  const keywordsResult = extractKeywords(
+    htmlAnalysis.content.fullText,
+    htmlAnalysis.meta.title
+  );
+
+  // --- Paso 7b: Estimación CWV offline (solo si PageSpeed no está disponible) ---
+  const cwvEstimate = (!pageSpeedResult?.available && $ && htmlText)
+    ? estimateCWVOffline($, htmlText)
+    : null;
+
+  // --- Paso 8: Análisis con Gemini AI ---
   let isAI = false;
   let aiError = null;
+  let aiErrorCode = null;
+  let aiHttpStatus = null;
   let aiMetrics;
 
   const geminiResult = await analyzeWithGemini(
@@ -1085,6 +1718,8 @@ export async function analyzeWebsite(url) {
     aiMetrics = geminiResult.data;
   } else {
     aiError = geminiResult.error;
+    aiErrorCode = geminiResult.errorCode || null;
+    aiHttpStatus = geminiResult.httpStatus || null;
     aiMetrics = generateHeuristicScores(
       htmlAnalysis.content,
       htmlAnalysis.meta,
@@ -1092,7 +1727,7 @@ export async function analyzeWebsite(url) {
     );
   }
 
-  // --- Paso 8: Construir objetos de resultado ---
+  // --- Paso 9: Construir objetos de resultado ---
   const technical = {
     robotsTxt: robotsResult.exists,
     robotsTxtDetails: {
@@ -1118,6 +1753,11 @@ export async function analyzeWebsite(url) {
       xContentTypeOptions: securityHeaders.xContentTypeOptions,
     },
     latencyMs,
+    // v3: Nuevos datos técnicos
+    internalLinks: internalLinksResult,
+    imageOptimization: imageOptimizationResult,
+    hreflang: hreflangResult,
+    cwvEstimate, // null si PageSpeed está disponible
   };
 
   const contentResult = {
@@ -1142,6 +1782,8 @@ export async function analyzeWebsite(url) {
     isScannable: htmlAnalysis.content.isScannable,
     hasAuthor: htmlAnalysis.content.hasAuthor,
     wordCount: htmlAnalysis.content.wordCount,
+    // v3: Keywords
+    keywords: keywordsResult,
   };
 
   const accessibilityResult = {
@@ -1174,7 +1816,7 @@ export async function analyzeWebsite(url) {
     criticalFindings: aiMetrics.critical_findings || [],
   };
 
-  // --- Paso 9: Performance (PageSpeed) ---
+  // --- Paso 10: Performance (PageSpeed) ---
   const performance = {
     available: pageSpeedResult?.available || false,
     performanceScore: pageSpeedResult?.performanceScore ?? null,
@@ -1185,12 +1827,18 @@ export async function analyzeWebsite(url) {
     ttfb: pageSpeedResult?.ttfb ?? null,
   };
 
-  // --- Paso 10: Score Final ---
+  // --- Paso 11: Social Readiness (v3: nuevo top-level key) ---
+  const social = socialResult;
+
+  // --- Paso 12: Score Final (v3: incluye nuevos módulos) ---
   const overallScore = computeOverallScore(
     technical,
     contentResult,
     accessibilityResult,
-    metrics2026
+    metrics2026,
+    imageOptimizationResult,
+    internalLinksResult,
+    socialResult
   );
 
   // --- Resultado final ---
@@ -1198,6 +1846,8 @@ export async function analyzeWebsite(url) {
     success: true,
     isAI,
     aiError,
+    aiErrorCode,     // v3: código de error específico
+    aiHttpStatus,    // v3: HTTP status del error
     overallScore,
     url,
     analyzedAt: new Date().toISOString(),
@@ -1206,5 +1856,6 @@ export async function analyzeWebsite(url) {
     accessibility: accessibilityResult,
     metrics2026,
     performance,
+    social,          // v3: nuevo top-level key
   };
 }
