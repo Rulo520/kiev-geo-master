@@ -215,7 +215,7 @@ export default function HomePage() {
       `Puntuación: ${score}/100`,
       `Fecha: ${formatDate(new Date().toISOString())}`,
       `---`,
-      `Generado con Kiev GEO Master v3.2`,
+      `Generado con Kiev GEO Master v3.3`,
     ].join("\n");
 
     try {
@@ -294,7 +294,7 @@ export default function HomePage() {
         <p className={styles.subtitle}>
           Auditoría SEO + GEO para dominar buscadores e IAs generativas
         </p>
-        <span className={styles.version}>v3.2 — Noviembre 2026</span>
+        <span className={styles.version}>v3.3 — Noviembre 2026</span>
       </section>
 
       {/* ============ Toolbar ============ */}
@@ -419,8 +419,8 @@ export default function HomePage() {
               onChange={(e) => setUrl(e.target.value)}
               placeholder={
                 comparisonMode
-                  ? "URL principal — ejemplo: https://tusitio.com"
-                  : "Ingresa la URL a analizar — ejemplo: https://tusitio.com"
+                  ? "URL principal — ej: urbano.com.ar"
+                  : "Ingresa la URL a analizar — ej: tusitio.com"
               }
               required
               disabled={isLoading}
@@ -439,7 +439,7 @@ export default function HomePage() {
                 className={styles.input}
                 value={urlB}
                 onChange={(e) => setUrlB(e.target.value)}
-                placeholder="URL competidor — ejemplo: https://competidor.com"
+                placeholder="URL competidor — ej: competidor.com"
                 required
                 disabled={isLoading}
                 style={{ flex: 1 }}
@@ -792,7 +792,7 @@ export default function HomePage() {
       {/* ============ Footer ============ */}
       <footer className={styles.footer}>
         <p>
-          Kiev GEO Master v3.2 — Desarrollado por{" "}
+          Kiev GEO Master v3.3 — Desarrollado por{" "}
           <a href="https://kiev.agency" target="_blank" rel="noopener noreferrer" style={{
             fontWeight: 700, color: "inherit", textDecoration: "underline",
             textUnderlineOffset: "3px",
