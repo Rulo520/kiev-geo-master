@@ -1,5 +1,5 @@
 /**
- * Kiev GEO Master — Tests del motor de análisis v3.1
+ * Kiev GEO Master — Tests del motor de análisis v3.2
  * 
  * Tests unitarios para las funciones de parsing, scoring y
  * el motor de análisis inteligente (generateSmartAnalysis).
@@ -77,7 +77,7 @@ const MINIMAL_HTML = `<!DOCTYPE html>
 // TESTS
 // ============================================================================
 
-describe('Kiev GEO Master Analyzer v3.1', () => {
+describe('Kiev GEO Master Analyzer v3.2', () => {
 
   describe('Score computation', () => {
     it('should return a score between 0 and 100', async () => {

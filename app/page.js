@@ -215,7 +215,7 @@ export default function HomePage() {
       `Puntuación: ${score}/100`,
       `Fecha: ${formatDate(new Date().toISOString())}`,
       `---`,
-      `Generado con Kiev GEO Master v3.1`,
+      `Generado con Kiev GEO Master v3.2`,
     ].join("\n");
 
     try {
@@ -281,10 +281,8 @@ export default function HomePage() {
       <section className={styles.hero}>
         <h1 className={styles.title}>
           <span style={{
-            background: "linear-gradient(135deg, #a78bfa 0%, #c084fc 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
+            color: theme === "dark" ? "#ffffff" : "#000000",
+            WebkitTextFillColor: theme === "dark" ? "#ffffff" : "#000000",
           }}>Kiev</span>{" "}
           <span style={{
             background: "linear-gradient(135deg, #06b6d4 0%, #22c55e 100%)",
@@ -296,7 +294,7 @@ export default function HomePage() {
         <p className={styles.subtitle}>
           Auditoría SEO + GEO para dominar buscadores e IAs generativas
         </p>
-        <span className={styles.version}>v3.1 — Noviembre 2026</span>
+        <span className={styles.version}>v3.2 — Noviembre 2026</span>
       </section>
 
       {/* ============ Toolbar ============ */}
@@ -794,8 +792,11 @@ export default function HomePage() {
       {/* ============ Footer ============ */}
       <footer className={styles.footer}>
         <p>
-          Kiev GEO Master v3.1 — Desarrollado por{" "}
-          <strong>Kiev Agency</strong> © {new Date().getFullYear()}
+          Kiev GEO Master v3.2 — Desarrollado por{" "}
+          <a href="https://kiev.agency" target="_blank" rel="noopener noreferrer" style={{
+            fontWeight: 700, color: "inherit", textDecoration: "underline",
+            textUnderlineOffset: "3px",
+          }}>Kiev Agency</a> © {new Date().getFullYear()}
         </p>
       </footer>
 
