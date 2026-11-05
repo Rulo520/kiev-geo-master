@@ -215,7 +215,7 @@ export default function HomePage() {
       `Puntuación: ${score}/100`,
       `Fecha: ${formatDate(new Date().toISOString())}`,
       `---`,
-      `Generado con Kiev GEO Master v3.0`,
+      `Generado con Kiev GEO Master v3.1`,
     ].join("\n");
 
     try {
@@ -280,13 +280,19 @@ export default function HomePage() {
       {/* ============ Hero Section ============ */}
       <section className={styles.hero}>
         <h1 className={styles.title}>
-          <Globe size={36} style={{ marginRight: 12, verticalAlign: "middle" }} />
-          Kiev GEO Master
+          Kiev <span style={{
+            background: "linear-gradient(135deg, #a78bfa 0%, #06b6d4 50%, #22c55e 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}>GEO Master</span>
         </h1>
         <p className={styles.subtitle}>
-          Análisis SEO integral impulsado por inteligencia artificial
+          Motor de auditoría integral para SEO, AEO y GEO. Análisis técnico
+          avanzado, Core Web Vitals, accesibilidad y cumplimiento de directrices
+          &quot;Answer-First&quot; para dominancia en motores generativos de IA.
         </p>
-        <span className={styles.version}>v3.0 — Noviembre 2026</span>
+        <span className={styles.version}>v3.1 — Noviembre 2026</span>
       </section>
 
       {/* ============ Toolbar ============ */}
@@ -784,7 +790,7 @@ export default function HomePage() {
       {/* ============ Footer ============ */}
       <footer className={styles.footer}>
         <p>
-          Kiev GEO Master v3.0 — Desarrollado por{" "}
+          Kiev GEO Master v3.1 — Desarrollado por{" "}
           <strong>Kiev Agency</strong> © {new Date().getFullYear()}
         </p>
       </footer>
