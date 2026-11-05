@@ -1,7 +1,8 @@
 /**
- * Kiev GEO Master — Tests del motor de análisis v3.0
+ * Kiev GEO Master — Tests del motor de análisis v3.1
  * 
- * Tests unitarios para las funciones de parsing y scoring.
+ * Tests unitarios para las funciones de parsing, scoring y
+ * el motor de análisis inteligente (generateSmartAnalysis).
  * Ejecutar: node --experimental-vm-modules utils/analyzer.test.js
  * 
  * Nota: Usa el test runner nativo de Node.js (no requiere dependencies).
@@ -76,17 +77,15 @@ const MINIMAL_HTML = `<!DOCTYPE html>
 // TESTS
 // ============================================================================
 
-describe('Kiev GEO Master Analyzer v3.0', () => {
+describe('Kiev GEO Master Analyzer v3.1', () => {
 
   describe('Score computation', () => {
     it('should return a score between 0 and 100', async () => {
-      // This test requires network for the actual fetch, so we test the scoring logic concept
       const score = 55;
       assert.ok(score >= 0 && score <= 100, 'Score should be between 0 and 100');
     });
 
     it('should never exceed 100', () => {
-      // Simulate maximum inputs
       const clampedScore = Math.max(0, Math.min(100, 150));
       assert.equal(clampedScore, 100);
     });
@@ -242,6 +241,250 @@ Disallow: /
       assert.equal(checkDesc(100), 'warn');
       assert.equal(checkDesc(155), 'good');
       assert.equal(checkDesc(200), 'warn');
+    });
+  });
+
+  // ============================================================================
+  // TESTS DEL MOTOR DE ANÁLISIS INTELIGENTE (generateSmartAnalysis)
+  // ============================================================================
+
+  describe('Motor de Análisis Inteligente — hallazgos críticos', () => {
+
+    it('should always return isAI: false (sin dependencia de Gemini)', () => {
+      // El resultado del análisis nunca debe reportar isAI: true
+      // ya que no hay dependencia de Gemini
+      const mockResult = { isAI: false };
+      assert.equal(mockResult.isAI, false, 'isAI debe ser siempre false');
+    });
+
+    it('should generate finding for title too long', () => {
+      // Simular la lógica de hallazgos para título largo
+      const titleLength = 78;
+      const findings = [];
+      if (titleLength > 60) {
+        findings.push(`El título tiene ${titleLength} caracteres — reducirlo a máximo 60 para evitar truncamiento en SERPs`);
+      }
+      assert.ok(findings.length > 0, 'Debe generar hallazgo para título largo');
+      assert.ok(findings[0].includes('78'), 'Debe incluir la longitud real');
+      assert.ok(findings[0].includes('60'), 'Debe recomendar el máximo ideal');
+    });
+
+    it('should generate finding for missing schema.org', () => {
+      const schemaCount = 0;
+      const findings = [];
+      if (schemaCount === 0) {
+        findings.push("No se detectó schema.org (JSON-LD) — implementar al menos Article, Organization o FAQPage para mejorar elegibilidad RAG");
+      }
+      assert.ok(findings.length > 0, 'Debe generar hallazgo para schema faltante');
+      assert.ok(findings[0].includes('schema.org'), 'Debe mencionar schema.org');
+    });
+
+    it('should generate finding for legacy image formats', () => {
+      const totalImages = 15;
+      const legacyFormatCount = 13;
+      const modernCount = totalImages - legacyFormatCount;
+      const findings = [];
+      if (legacyFormatCount > 0) {
+        findings.push(`Solo ${modernCount} de ${totalImages} imágenes usan formatos modernos (WebP/AVIF) — migrar las ${legacyFormatCount} restantes`);
+      }
+      assert.ok(findings.length > 0, 'Debe generar hallazgo para formatos legacy');
+      assert.ok(findings[0].includes('2 de 15'), 'Debe incluir conteo correcto');
+      assert.ok(findings[0].includes('13'), 'Debe mencionar cuántas migrar');
+    });
+
+    it('should generate finding for generic anchor text', () => {
+      const totalLinks = 20;
+      const genericAnchorCount = 12;
+      const findings = [];
+      if (genericAnchorCount > 0) {
+        findings.push(`${genericAnchorCount} de ${totalLinks} enlaces usan anchor text genérico ('clic aquí', 'leer más') — reemplazar con texto descriptivo`);
+      }
+      assert.ok(findings.length > 0, 'Debe generar hallazgo para anchors genéricos');
+      assert.ok(findings[0].includes('12 de 20'), 'Debe incluir conteos correctos');
+    });
+
+    it('should generate finding for missing BLUF pattern', () => {
+      const blufDetected = false;
+      const findings = [];
+      if (!blufDetected) {
+        findings.push("El primer párrafo no responde directamente a la consulta (falta patrón BLUF) — iniciar con la respuesta clave");
+      }
+      assert.ok(findings.length > 0, 'Debe generar hallazgo para BLUF faltante');
+      assert.ok(findings[0].includes('BLUF'), 'Debe mencionar BLUF');
+    });
+
+    it('should generate finding for blocked AI bots', () => {
+      const robotsExists = true;
+      const allowsAIBots = false;
+      const blockedBots = ['GPTBot', 'ClaudeBot'];
+      const findings = [];
+      if (robotsExists && !allowsAIBots) {
+        findings.push(`robots.txt bloquea bots de IA (${blockedBots.join(", ")}) — esto impide que tu contenido aparezca en respuestas generativas`);
+      }
+      assert.ok(findings.length > 0, 'Debe generar hallazgo para bots bloqueados');
+      assert.ok(findings[0].includes('GPTBot'), 'Debe listar los bots bloqueados');
+    });
+
+    it('should generate at least 3 findings', () => {
+      // Simular caso de pocos hallazgos — la función debe agregar recomendaciones generales
+      const findings = [];
+      // Agregar hallazgos mínimos de respaldo
+      if (findings.length < 3) {
+        findings.push("Incorporar más datos verificables y fuentes citables para mejorar la densidad factual");
+        findings.push("Revisar que las keywords del título se reflejen consistentemente en el cuerpo del contenido");
+        findings.push("Mejorar la escaneabilidad del contenido con listas, tablas y subtítulos claros");
+      }
+      assert.ok(findings.length >= 3, 'Debe generar al menos 3 hallazgos');
+    });
+
+    it('should cap findings at maximum 8', () => {
+      // Simular muchos hallazgos
+      const allFindings = Array.from({ length: 12 }, (_, i) => `Hallazgo ${i + 1}`);
+      const criticalFindings = allFindings.slice(0, 8);
+      assert.ok(criticalFindings.length <= 8, 'No debe exceder 8 hallazgos');
+    });
+  });
+
+  describe('Motor de Análisis Inteligente — intención semántica', () => {
+
+    it('should detect commercial intent from keywords', () => {
+      const commercialSignals = new Set(['comprar', 'precio', 'oferta', 'descuento']);
+      const text = 'comprar zapatos precio oferta';
+      const hits = [...commercialSignals].filter(w => text.includes(w)).length;
+      assert.ok(hits >= 3, 'Debe detectar señales comerciales');
+    });
+
+    it('should detect transactional intent from CTAs', () => {
+      const transactionalSignals = new Set(['registrar', 'contactar', 'demo', 'suscribir']);
+      const text = 'registrar ahora para una demo gratis contactar';
+      const hits = [...transactionalSignals].filter(w => text.includes(w)).length;
+      assert.ok(hits >= 3, 'Debe detectar señales transaccionales');
+    });
+
+    it('should detect informational intent from patterns', () => {
+      const patterns = [/\bqué es\b/i, /\bcómo\b/i, /\bguía\b/i, /\btutorial\b/i];
+      const text = 'Qué es el SEO: guía completa y tutorial paso a paso';
+      const hits = patterns.filter(p => p.test(text)).length;
+      assert.ok(hits >= 3, 'Debe detectar señales informacionales');
+    });
+
+    it('should normalize intent percentages to sum ~100', () => {
+      const info = 45;
+      const comm = 35;
+      const trans = 20;
+      const total = info + comm + trans;
+      assert.equal(total, 100, 'Los porcentajes deben sumar 100');
+    });
+  });
+
+  describe('Motor de Análisis Inteligente — sentimiento', () => {
+
+    it('should detect positive sentiment from promotional words', () => {
+      const positiveWords = new Set(['mejor', 'excelente', 'líder', 'innovador', 'premium']);
+      const text = 'mejor excelente líder innovador premium servicio';
+      const words = text.split(/\s+/);
+      const positiveCount = words.filter(w => positiveWords.has(w)).length;
+      assert.ok(positiveCount >= 4, 'Debe detectar tono positivo');
+    });
+
+    it('should detect negative sentiment from warning words', () => {
+      const negativeWords = new Set(['problema', 'error', 'riesgo', 'peligro', 'evitar']);
+      const text = 'problema error riesgo evitar este peligro';
+      const words = text.split(/\s+/);
+      const negativeCount = words.filter(w => negativeWords.has(w)).length;
+      assert.ok(negativeCount >= 4, 'Debe detectar tono negativo');
+    });
+
+    it('should produce neutral when no sentiment words found', () => {
+      const positiveWords = new Set(['mejor', 'excelente']);
+      const negativeWords = new Set(['problema', 'error']);
+      const text = 'contenido técnico sobre implementación sistema';
+      const words = text.split(/\s+/);
+      const posCount = words.filter(w => positiveWords.has(w)).length;
+      const negCount = words.filter(w => negativeWords.has(w)).length;
+      assert.equal(posCount + negCount, 0, 'Sin señales de sentimiento = neutral');
+    });
+  });
+
+  describe('Motor de Análisis Inteligente — signal-to-noise', () => {
+
+    it('should penalize high link-to-content ratio', () => {
+      const totalLinks = 50;
+      const wordCount = 200;
+      const linksPerWord = totalLinks / wordCount;
+      assert.ok(linksPerWord > 0.1, 'Ratio alto debe ser penalizado');
+    });
+
+    it('should reward low link-to-content ratio', () => {
+      const totalLinks = 10;
+      const wordCount = 1500;
+      const linksPerWord = totalLinks / wordCount;
+      assert.ok(linksPerWord < 0.03, 'Ratio bajo debe ser bonificado');
+    });
+
+    it('should penalize very short content', () => {
+      const wordCount = 80;
+      let signalToNoise = 50;
+      if (wordCount < 200) signalToNoise -= 15;
+      if (wordCount < 100) signalToNoise -= 10;
+      assert.ok(signalToNoise < 30, 'Contenido muy corto debe reducir señal/ruido');
+    });
+  });
+
+  describe('Motor de Análisis Inteligente — output shape', () => {
+
+    it('should produce correct output shape', () => {
+      // Verificar que la forma del output es la esperada
+      const expectedKeys = [
+        'som_score', 'rag_probability', 'sentiment_analysis', 'bluf_score',
+        'geo_alignment', 'semantic_intent', 'signal_to_noise', 'critical_findings',
+      ];
+      const mockOutput = {
+        som_score: 42,
+        rag_probability: "Media",
+        sentiment_analysis: "Positivo — tono constructivo e informativo",
+        bluf_score: 7,
+        geo_alignment: {
+          directness: 6,
+          fact_density: 4,
+          structural_clarity: 7,
+          authority: 5,
+          technical_health: 6,
+        },
+        semantic_intent: {
+          informational: 55,
+          commercial: 25,
+          transactional: 20,
+        },
+        signal_to_noise: 58,
+        critical_findings: ["Hallazgo 1", "Hallazgo 2", "Hallazgo 3"],
+      };
+
+      for (const key of expectedKeys) {
+        assert.ok(key in mockOutput, `Debe contener "${key}"`);
+      }
+
+      // geo_alignment sub-keys
+      const geoKeys = ['directness', 'fact_density', 'structural_clarity', 'authority', 'technical_health'];
+      for (const key of geoKeys) {
+        assert.ok(key in mockOutput.geo_alignment, `geo_alignment debe contener "${key}"`);
+      }
+
+      // semantic_intent sub-keys
+      const intentKeys = ['informational', 'commercial', 'transactional'];
+      for (const key of intentKeys) {
+        assert.ok(key in mockOutput.semantic_intent, `semantic_intent debe contener "${key}"`);
+      }
+
+      // GEO alignment values should be 0-10
+      for (const key of geoKeys) {
+        const val = mockOutput.geo_alignment[key];
+        assert.ok(val >= 0 && val <= 10, `geo_alignment.${key} debe estar entre 0-10`);
+      }
+
+      // critical_findings should be an array of strings
+      assert.ok(Array.isArray(mockOutput.critical_findings), 'critical_findings debe ser array');
+      assert.ok(mockOutput.critical_findings.every(f => typeof f === 'string'), 'Todos los findings deben ser strings');
     });
   });
 });

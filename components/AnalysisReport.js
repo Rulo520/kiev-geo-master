@@ -4,7 +4,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, Activity, Search, FileText, Bot, Zap,
   BookOpen, ListChecks, Target, BarChart3, Waves, Info, Shield, Globe, Image,
   Type, Hash, Clock, Gauge, Eye, Accessibility, FileSearch, AlertOctagon,
-  Sparkles, Monitor, ChevronDown, ChevronUp, Link2, ImageIcon, Languages,
+  Monitor, ChevronDown, ChevronUp, Link2, ImageIcon, Languages,
   Share2, Heart, Smartphone, Palette, Tag
 } from "lucide-react";
 import styles from "../app/page.module.css";
@@ -206,27 +206,8 @@ function AnimatedBar({ value, max = 100, color, label, showValue = true, height 
   );
 }
 
-function AuditModeBadge({ isAI, aiError, aiErrorCode }) {
-  if (isAI && !aiError) {
-    return (
-      <StatusBadge label="Auditoría IA (Gemini)" color="#a78bfa" icon={Sparkles} />
-    );
-  }
-  if (aiError) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <StatusBadge label="Auditoría Heurística" color="#60a5fa" icon={Monitor} />
-        <span style={{
-          fontSize: 12, color: "#f97316",
-          display: "flex", alignItems: "center", gap: 4,
-        }}>
-          <AlertTriangle size={12} />
-          IA no disponible{aiErrorCode ? ` (${aiErrorCode})` : ""}
-        </span>
-      </div>
-    );
-  }
-  return <StatusBadge label="Auditoría Heurística" color="#60a5fa" icon={Monitor} />;
+function AuditModeBadge() {
+  return <StatusBadge label="Auditoría Inteligente" color="#a78bfa" icon={Zap} />;
 }
 
 function MetricCard({ icon: Icon, label, value, unit, color }) {
@@ -385,7 +366,7 @@ export default function AnalysisReport({ data }) {
 
           {/* Badges */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 200 }}>
-            <AuditModeBadge isAI={data.isAI} aiError={data.aiError} aiErrorCode={data.aiErrorCode} />
+            <AuditModeBadge />
 
             {metrics2026?.ragProbability && (
               <StatusBadge

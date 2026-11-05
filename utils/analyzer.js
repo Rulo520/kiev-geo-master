@@ -9,9 +9,6 @@ import * as cheerio from "cheerio";
 // --- Constantes ---
 const FETCH_TIMEOUT = 5000;        // Timeout para fetches de recursos (ms)
 const PAGESPEED_TIMEOUT = 20000;   // Timeout para PageSpeed Insights (ms) — v3: 15s → 20s
-const GEMINI_TIMEOUT = 45000;      // Timeout para Gemini API (ms) — v3: 30s → 45s
-const GEMINI_PRIMARY_MODEL = "gemini-2.5-flash";
-const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
 
 // Bots de IA que rastreamos en robots.txt
 const AI_BOTS = [
@@ -442,7 +439,7 @@ const analyzeContent = ($) => {
     isScannable,
     hasAuthor,
     wordCount,
-    fullText, // Se usará internamente para Gemini y keywords
+    fullText, // Se usará internamente para análisis inteligente y keywords
   };
 };
 
@@ -658,312 +655,377 @@ const analyzeLlmsTxt = (llmsText) => {
 };
 
 // ============================================================================
-// 7. ANÁLISIS CON GEMINI AI (v3: mejor manejo de errores)
+// 7. MOTOR DE ANÁLISIS INTELIGENTE (v3.1: sin dependencia de IA externa)
 // ============================================================================
 
+// Palabras clave para detección de sentimiento
+const POSITIVE_WORDS = new Set([
+  "mejor", "excelente", "innovador", "líder", "premium", "garantía", "éxito",
+  "beneficio", "ventaja", "solución", "profesional", "calidad", "confiable",
+  "best", "excellent", "innovative", "leader", "premium", "guarantee", "success",
+  "benefit", "advantage", "solution", "professional", "quality", "reliable",
+  "recomendado", "destacado", "superior", "eficiente", "óptimo", "ideal",
+]);
+const NEGATIVE_WORDS = new Set([
+  "problema", "error", "riesgo", "peor", "difícil", "costoso", "lento",
+  "malo", "peligro", "complicado", "deficiente", "obsoleto",
+  "problem", "error", "risk", "worst", "difficult", "expensive", "slow",
+  "bad", "danger", "complicated", "deficient", "obsolete", "issue", "fail",
+]);
+const COMMERCIAL_WORDS = new Set([
+  "comprar", "precio", "oferta", "descuento", "gratis", "cotización", "plan",
+  "suscripción", "tarifa", "costo", "pago", "envío", "promoción", "barato",
+  "buy", "price", "offer", "discount", "free", "quote", "plan", "subscription",
+  "rate", "cost", "payment", "shipping", "promotion", "cheap", "deal", "sale",
+]);
+
 /**
- * Schema de respuesta estructurada para Gemini.
+ * Analiza el sentimiento del contenido basado en diccionarios de palabras.
  */
-const GEMINI_RESPONSE_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    som_score: { type: "NUMBER" },
-    rag_probability: { type: "STRING" },
-    sentiment_analysis: { type: "STRING" },
-    bluf_score: { type: "NUMBER" },
-    geo_alignment: {
-      type: "OBJECT",
-      properties: {
-        directness: { type: "NUMBER" },
-        fact_density: { type: "NUMBER" },
-        structural_clarity: { type: "NUMBER" },
-        authority: { type: "NUMBER" },
-        technical_health: { type: "NUMBER" },
-      },
-      required: [
-        "directness",
-        "fact_density",
-        "structural_clarity",
-        "authority",
-        "technical_health",
-      ],
-    },
-    semantic_intent: {
-      type: "OBJECT",
-      properties: {
-        informational: { type: "NUMBER" },
-        commercial: { type: "NUMBER" },
-        transactional: { type: "NUMBER" },
-      },
-      required: ["informational", "commercial", "transactional"],
-    },
-    signal_to_noise: { type: "NUMBER" },
-    critical_findings: {
-      type: "ARRAY",
-      items: { type: "STRING" },
-    },
-  },
-  required: [
-    "som_score",
-    "rag_probability",
-    "sentiment_analysis",
-    "bluf_score",
-    "geo_alignment",
-    "semantic_intent",
-    "signal_to_noise",
-    "critical_findings",
-  ],
+const analyzeSentiment = (text) => {
+  const words = text.toLowerCase().split(/\s+/);
+  let positive = 0, negative = 0, commercial = 0;
+  for (const w of words) {
+    if (POSITIVE_WORDS.has(w)) positive++;
+    if (NEGATIVE_WORDS.has(w)) negative++;
+    if (COMMERCIAL_WORDS.has(w)) commercial++;
+  }
+  const total = Math.max(positive + negative + commercial, 1);
+  const posRatio = positive / total;
+  const negRatio = negative / total;
+  const comRatio = commercial / total;
+
+  if (comRatio > 0.4) return "Comercial — tono promocional predominante";
+  if (posRatio > 0.6 && negRatio < 0.1) return "Positivo — tono optimista y constructivo";
+  if (negRatio > 0.4) return "Negativo — menciona problemas o riesgos frecuentemente";
+  if (posRatio > negRatio) return "Positivo-Neutral — tono profesional con énfasis en beneficios";
+  if (negRatio > posRatio) return "Neutral-Crítico — tono analítico con advertencias";
+  return "Neutral — tono informativo equilibrado";
 };
 
 /**
- * Clasifica un error de la API de Gemini en un código semántico específico.
- *
- * @param {number|null} httpStatus - Código HTTP de la respuesta (o null si no hubo respuesta)
- * @param {Error|null} err - Error capturado durante la llamada
- * @returns {{ errorCode: string, errorMessage: string, httpStatus: number|null }}
+ * Detecta la intención semántica del contenido.
  */
-const classifyGeminiError = (httpStatus, err) => {
-  // Timeout del AbortSignal
-  if (err && (err.name === "TimeoutError" || err.name === "AbortError")) {
-    return {
-      errorCode: "timeout",
-      errorMessage: `La solicitud a Gemini excedió el timeout de ${GEMINI_TIMEOUT}ms`,
-      httpStatus: null,
-    };
+const detectSemanticIntent = (text, title, description) => {
+  const combined = `${title} ${description} ${text}`.toLowerCase();
+
+  const infoPatterns = /\b(guía|tutorial|qué es|cómo|por qué|definición|historia|explicación|aprende|guide|how to|what is|why|definition|learn|understand|tips|consejos)\b/gi;
+  const commercialPatterns = /\b(comprar|precio|oferta|comparar|review|mejor|top \d|versus|vs|opinión|buy|price|offer|compare|best|discount|descuento|barato|cheap|deal|sale)\b/gi;
+  const transactionalPatterns = /\b(registr|suscri|descargar|contactar|demo|prueba gratis|añadir al carrito|sign.up|download|contact|free trial|add to cart|subscribe|login|iniciar sesión|crear cuenta)\b/gi;
+
+  const infoCount = (combined.match(infoPatterns) || []).length;
+  const commCount = (combined.match(commercialPatterns) || []).length;
+  const transCount = (combined.match(transactionalPatterns) || []).length;
+  const totalIntent = Math.max(infoCount + commCount + transCount, 1);
+
+  // Normalizar a porcentajes que sumen ~100
+  const raw = {
+    informational: Math.round((infoCount / totalIntent) * 100) || 15,
+    commercial: Math.round((commCount / totalIntent) * 100) || 10,
+    transactional: Math.round((transCount / totalIntent) * 100) || 5,
+  };
+
+  // Si no hay señales claras, default a informacional
+  if (infoCount === 0 && commCount === 0 && transCount === 0) {
+    return { informational: 60, commercial: 25, transactional: 15 };
   }
 
-  // Errores basados en HTTP status
-  if (httpStatus === 402) {
-    return {
-      errorCode: "credits_exhausted",
-      errorMessage: "Créditos de la API de Gemini agotados (HTTP 402)",
-      httpStatus: 402,
-    };
-  }
-  if (httpStatus === 429) {
-    return {
-      errorCode: "quota_exceeded",
-      errorMessage: "Cuota de la API de Gemini excedida (HTTP 429). Reintentar más tarde.",
-      httpStatus: 429,
-    };
-  }
-  if (httpStatus === 404) {
-    return {
-      errorCode: "model_not_found",
-      errorMessage: `Modelo de Gemini no encontrado (HTTP 404)`,
-      httpStatus: 404,
-    };
-  }
-  if (httpStatus === 403) {
-    return {
-      errorCode: "api_key_invalid",
-      errorMessage: "API key de Gemini inválida o sin permisos (HTTP 403)",
-      httpStatus: 403,
-    };
-  }
-
-  // Error genérico con status HTTP
-  if (httpStatus && httpStatus >= 400) {
-    return {
-      errorCode: "unknown",
-      errorMessage: `Error HTTP ${httpStatus} de la API de Gemini`,
-      httpStatus,
-    };
-  }
-
-  // Error de red u otro
+  // Normalizar para que sumen 100
+  const sum = raw.informational + raw.commercial + raw.transactional;
   return {
-    errorCode: "unknown",
-    errorMessage: err?.message || "Error desconocido al contactar Gemini",
-    httpStatus: null,
+    informational: Math.round((raw.informational / sum) * 100),
+    commercial: Math.round((raw.commercial / sum) * 100),
+    transactional: Math.round((raw.transactional / sum) * 100),
   };
 };
 
 /**
- * Llama a la API de Gemini para análisis semántico profundo.
- * Usa structured output para evitar parsing manual de JSON.
- * Intenta modelo primario, luego fallback.
+ * Genera análisis inteligente completo usando todas las métricas disponibles.
+ * Reemplaza a Gemini con un motor de reglas que produce resultados
+ * más consistentes, rápidos y sin costo.
  *
- * v3: Retorna códigos de error específicos y el status HTTP.
+ * @param {Object} params - Todos los datos recopilados durante el análisis
+ * @returns {Object} Métricas GEO/AEO con la misma estructura que antes
  */
-const analyzeWithGemini = async (url, textContent, metaSummary) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return {
-      success: false,
-      error: "GEMINI_API_KEY no configurada",
-      errorCode: "api_key_missing",
-      httpStatus: null,
-    };
-  }
+const generateSmartAnalysis = ({
+  content, meta, headings, schemas, robots, llms, sitemap,
+  internalLinks, imageOptimization, hreflang, social, keywords,
+  accessibility, securityHeaders, performance, latencyMs,
+}) => {
+  // --- SoM Score (Source of Meaning): ¿citaría una IA este contenido? ---
+  let somScore = 15; // Base conservadora
 
-  // Limitar contenido a 5000 caracteres
-  const truncatedContent = textContent.substring(0, 5000);
+  // Profundidad de contenido
+  if (content.wordCount > 2000) somScore += 12;
+  else if (content.wordCount > 1200) somScore += 9;
+  else if (content.wordCount > 800) somScore += 6;
+  else if (content.wordCount > 400) somScore += 3;
+  if (content.wordCount < 200) somScore -= 8;
 
-  const prompt = `Eres un evaluador ULTRA EXIGENTE de calidad web para GEO (Generative Engine Optimization) y AEO (Answer Engine Optimization). Tu trabajo es evaluar si una IA generativa citaría o usaría este contenido como fuente.
-
-REGLAS DE SCORING (SÉ HIPER-CRÍTICO):
-- Score 80-100: Solo contenido nivel Wikipedia, documentación oficial de MDN, papers científicos. Extremadamente raro.
-- Score 50-79: Contenido bueno con datos verificables, fuentes citadas, estructura clara. Poco común.
-- Score 20-49: Contenido promedio de blog/landing page. Lo más común.
-- Score 0-19: Contenido thin, sin sustancia, puramente comercial sin valor informativo.
-
-La mayoría de sitios web deberían puntuar entre 20-50. NO seas generoso.
-
-URL analizada: ${url}
-Meta título: ${metaSummary.title}
-Meta descripción: ${metaSummary.description}
-
-CONTENIDO DE LA PÁGINA (primeros 5000 chars):
----
-${truncatedContent}
----
-
-Evalúa todos los campos con precisión. Para critical_findings, proporciona 3-5 hallazgos ESPECÍFICOS y ACCIONABLES (no genéricos). Sé concreto: menciona qué falta, qué está mal, qué mejorar exactamente.`;
-
-  // Intentar con modelo primario, luego fallback
-  const models = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
-  /** @type {{ errorCode: string, errorMessage: string, httpStatus: number|null }|null} */
-  let lastError = null;
-
-  for (const model of models) {
-    try {
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(GEMINI_TIMEOUT),
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: GEMINI_RESPONSE_SCHEMA,
-            temperature: 0.3,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Gemini ${model} error:`, response.status, errorText);
-        lastError = classifyGeminiError(response.status, null);
-        continue; // Intentar fallback
-      }
-
-      const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!text) {
-        console.error(`Gemini ${model}: respuesta vacía`);
-        lastError = { errorCode: "unknown", errorMessage: `Gemini ${model}: respuesta vacía`, httpStatus: null };
-        continue;
-      }
-
-      // Con structured output, el texto ya es JSON válido
-      const parsed = JSON.parse(text);
-      return { success: true, data: parsed, model };
-    } catch (err) {
-      console.error(`Gemini ${model} falló:`, err.message);
-      lastError = classifyGeminiError(null, err);
-      continue;
-    }
-  }
-
-  return {
-    success: false,
-    error: lastError?.errorMessage || "Ambos modelos de Gemini fallaron",
-    errorCode: lastError?.errorCode || "unknown",
-    httpStatus: lastError?.httpStatus || null,
-  };
-};
-
-/**
- * Genera scores heurísticos cuando Gemini no está disponible.
- */
-const generateHeuristicScores = (content, meta, headings) => {
-  // SoM Simulation basado en señales heurísticas
-  let somScore = 20; // Base baja
-
-  // Bonificaciones
-  if (content.wordCount > 800) somScore += 10;
-  if (content.wordCount > 1500) somScore += 5;
+  // Patrón BLUF (respuesta directa)
   if (content.blufDetected) somScore += 8;
-  if (content.statsCount > 2) somScore += 7;
-  if (content.isScannable) somScore += 5;
-  if (content.hasAuthor) somScore += 5;
-  if (meta.titleStatus === "good") somScore += 3;
-  if (meta.descriptionStatus === "good") somScore += 3;
-  if (meta.hasOgTags) somScore += 2;
-  if (headings.hasGoodHierarchy) somScore += 5;
+
+  // Datos factuales
+  if (content.statsCount > 5) somScore += 10;
+  else if (content.statsCount > 2) somScore += 6;
+  else if (content.statsCount > 0) somScore += 2;
+
+  // Estructura
+  if (headings.hasGoodHierarchy) somScore += 6;
+  if (content.isScannable) somScore += 4;
+  if (headings.h2 >= 3) somScore += 3;
+
+  // Autoría y confianza
+  if (content.hasAuthor) somScore += 6;
+  if (securityHeaders?.https) somScore += 2;
+  if (securityHeaders?.hsts) somScore += 1;
+
+  // Schema (bonus por tipos específicos)
+  if (schemas.count > 0) {
+    somScore += 4;
+    const schemaStr = (schemas.types || []).join(",").toLowerCase();
+    if (schemaStr.includes("article") || schemaStr.includes("newsarticle")) somScore += 4;
+    if (schemaStr.includes("faqpage") || schemaStr.includes("howto")) somScore += 5;
+    if (schemaStr.includes("product")) somScore += 2;
+    if (schemaStr.includes("organization") || schemaStr.includes("person")) somScore += 3;
+    if (schemaStr.includes("dataset") || schemaStr.includes("scholarlyarticle")) somScore += 6;
+  }
+
+  // Acceso para bots IA
+  if (robots?.allowsAIBots) somScore += 3;
+  if (llms?.exists) somScore += 4;
+
+  // Keywords alineadas con título
+  if (keywords?.topKeywords?.length > 0 && meta.title) {
+    const titleLower = meta.title.toLowerCase();
+    const aligned = keywords.topKeywords.slice(0, 5).filter(k => titleLower.includes(k.word));
+    if (aligned.length >= 2) somScore += 4;
+    else if (aligned.length >= 1) somScore += 2;
+  }
 
   // Penalizaciones
-  if (content.wordCount < 300) somScore -= 10;
+  if (!meta.hasCanonical) somScore -= 3;
   if (meta.titleStatus === "error") somScore -= 5;
-  if (meta.descriptionStatus === "error") somScore -= 5;
+  if (meta.descriptionStatus === "error") somScore -= 4;
+  if (!meta.hasViewport) somScore -= 3;
+  if (accessibility && accessibility.imagesWithoutAlt > 3) somScore -= 3;
+
+  // Penalizar contenido puramente comercial
+  const semanticIntent = detectSemanticIntent(
+    content.fullText || "", meta.title || "", meta.description || ""
+  );
+  if (semanticIntent.commercial > 70) somScore -= 5;
 
   somScore = Math.max(0, Math.min(100, somScore));
 
-  // RAG probability
+  // --- RAG Probability ---
   let ragProb = "Baja";
-  if (somScore >= 60) ragProb = "Alta";
-  else if (somScore >= 35) ragProb = "Media";
+  if (somScore >= 65) ragProb = "Alta";
+  else if (somScore >= 40) ragProb = "Media";
+  else if (somScore >= 25) ragProb = "Media-Baja";
 
-  // Geo alignment heurístico
-  const directness = content.blufDetected ? 60 : 30;
-  const factDensity = Math.min(
-    100,
-    Math.round((content.statsCount / Math.max(content.wordCount / 200, 1)) * 50)
-  );
-  const structuralClarity =
-    (headings.hasGoodHierarchy ? 40 : 15) + (content.isScannable ? 25 : 0);
-  const authority = content.hasAuthor ? 40 : 15;
-  const technicalHealth =
-    (meta.titleStatus === "good" ? 25 : 10) +
-    (meta.descriptionStatus === "good" ? 25 : 10) +
-    (meta.hasCanonical ? 15 : 0);
+  // --- Sentiment ---
+  const sentiment = analyzeSentiment(content.fullText || "");
+
+  // --- GEO Alignment (5 ejes) ---
+  // Directness (0-100)
+  let directness = 20;
+  if (content.blufDetected) directness += 30;
+  if (headings.hasGoodHierarchy) directness += 15;
+  if (headings.h1 === 1) directness += 10;
+  if (content.isScannable) directness += 10;
+  if (keywords?.topKeywords?.length > 0 && meta.title) {
+    const titleLower = meta.title.toLowerCase();
+    if (keywords.topKeywords.slice(0, 3).some(k => titleLower.includes(k.word))) directness += 15;
+  }
+  directness = Math.min(100, directness);
+
+  // Fact Density (0-100)
+  let factDensity = 10;
+  const statsRatio = content.statsCount / Math.max(content.wordCount / 200, 1);
+  factDensity += Math.min(40, Math.round(statsRatio * 25));
+  if (schemas.count > 0) factDensity += 10;
+  const schemaStr = (schemas.types || []).join(",").toLowerCase();
+  if (schemaStr.includes("dataset") || schemaStr.includes("scholarly")) factDensity += 15;
+  if (keywords?.uniqueKeywords > 20) factDensity += 10;
+  else if (keywords?.uniqueKeywords > 10) factDensity += 5;
+  if (content.wordCount > 1000) factDensity += 10;
+  factDensity = Math.min(100, factDensity);
+
+  // Structural Clarity (0-100)
+  let structuralClarity = 15;
+  if (headings.hasGoodHierarchy) structuralClarity += 25;
+  if (headings.h2 >= 3) structuralClarity += 10;
+  if (headings.h3 >= 2) structuralClarity += 5;
+  if (content.isScannable) structuralClarity += 15;
+  if (meta.hasCanonical) structuralClarity += 10;
+  if (meta.hasLang) structuralClarity += 5;
+  if (sitemap?.exists) structuralClarity += 10;
+  if (internalLinks?.totalLinks > 3) structuralClarity += 5;
+  structuralClarity = Math.min(100, structuralClarity);
+
+  // Authority (0-100)
+  let authority = 10;
+  if (content.hasAuthor) authority += 15;
+  if (securityHeaders?.https) authority += 10;
+  if (securityHeaders?.hsts) authority += 8;
+  if (securityHeaders?.csp) authority += 5;
+  if (schemas.count > 0) authority += 8;
+  if (schemaStr.includes("organization") || schemaStr.includes("person")) authority += 10;
+  if (social?.score > 70) authority += 10;
+  else if (social?.score > 40) authority += 5;
+  if (robots?.exists && robots.allowsAIBots) authority += 5;
+  if (llms?.exists) authority += 7;
+  if (meta.hasOgTags) authority += 5;
+  authority = Math.min(100, authority);
+
+  // Technical Health (0-100)
+  let technicalHealth = 10;
+  if (meta.titleStatus === "good") technicalHealth += 12;
+  else if (meta.titleStatus === "warning") technicalHealth += 5;
+  if (meta.descriptionStatus === "good") technicalHealth += 12;
+  else if (meta.descriptionStatus === "warning") technicalHealth += 5;
+  if (meta.hasViewport) technicalHealth += 8;
+  if (meta.hasCanonical) technicalHealth += 8;
+  if (accessibility?.score > 70) technicalHealth += 10;
+  else if (accessibility?.score > 40) technicalHealth += 5;
+  if (imageOptimization?.modernFormatPercentage > 50) technicalHealth += 8;
+  if (sitemap?.exists) technicalHealth += 7;
+  if (performance?.available && performance.performanceScore > 70) technicalHealth += 10;
+  else if (performance?.available && performance.performanceScore > 40) technicalHealth += 5;
+  if (latencyMs < 1000) technicalHealth += 5;
+  else if (latencyMs > 3000) technicalHealth -= 5;
+  technicalHealth = Math.min(100, Math.max(0, technicalHealth));
+
+  // --- Signal-to-Noise Ratio ---
+  let signalToNoise = 30;
+  const linkToContentRatio = internalLinks?.totalLinks
+    ? internalLinks.totalLinks / Math.max(content.wordCount / 100, 1)
+    : 0;
+  if (linkToContentRatio < 2) signalToNoise += 10;
+  if (linkToContentRatio > 5) signalToNoise -= 10;
+  if (content.statsCount > 3) signalToNoise += 10;
+  if (content.isScannable) signalToNoise += 10;
+  if (content.wordCount > 500) signalToNoise += 10;
+  if (content.blufDetected) signalToNoise += 8;
+  if (internalLinks?.genericAnchorPercentage > 50) signalToNoise -= 10;
+  if (semanticIntent.informational > 50) signalToNoise += 8;
+  if (semanticIntent.commercial > 70) signalToNoise -= 8;
+  signalToNoise = Math.max(0, Math.min(100, signalToNoise));
+
+  // --- Critical Findings (5-8 hallazgos específicos y accionables) ---
+  const findings = [];
+
+  // Meta tags
+  if (meta.titleLength > 60) {
+    findings.push(`El título tiene ${meta.titleLength} caracteres — reducirlo a máximo 60 para evitar truncamiento en SERPs`);
+  } else if (meta.titleLength < 30) {
+    findings.push(`El título tiene solo ${meta.titleLength} caracteres — ampliarlo a 50-60 caracteres para mejor visibilidad`);
+  }
+  if (meta.descriptionLength > 160) {
+    findings.push(`La meta descripción tiene ${meta.descriptionLength} caracteres — acortarla a 150-160 para evitar corte`);
+  } else if (!meta.description || meta.descriptionLength < 70) {
+    findings.push(`Meta descripción ausente o muy corta (${meta.descriptionLength || 0} chars) — escribir 120-160 caracteres descriptivos`);
+  }
+
+  // Contenido
+  if (content.wordCount < 300) {
+    findings.push(`Contenido insuficiente: solo ${content.wordCount} palabras — los motores de IA prefieren contenido de 800+ palabras con sustancia`);
+  }
+  if (!content.blufDetected) {
+    findings.push("Falta patrón BLUF: el primer párrafo no responde directamente a la consulta — reformular para dar la respuesta clave en las primeras 2 oraciones");
+  }
+  if (!content.hasAuthor) {
+    findings.push("Sin señales de autoría verificable — agregar nombre de autor, bio y links de perfil para mejorar E-E-A-T");
+  }
+  if (content.statsCount < 2) {
+    findings.push("Pocas referencias a datos cuantificables — incluir estadísticas, porcentajes o cifras para aumentar la credibilidad factual");
+  }
+
+  // Schema
+  if (schemas.count === 0) {
+    findings.push("No se detectó schema.org (datos estructurados) — implementar al menos Article, Organization o FAQPage según el tipo de contenido");
+  }
+
+  // Imágenes
+  if (imageOptimization) {
+    const { totalImages, modernFormatCount, imagesWithoutAlt } = imageOptimization;
+    if (totalImages > 0 && modernFormatCount < totalImages) {
+      const legacy = totalImages - modernFormatCount;
+      findings.push(`Solo ${modernFormatCount} de ${totalImages} imágenes usan formatos modernos (WebP/AVIF) — migrar las ${legacy} restantes para reducir ~30% del peso`);
+    }
+    if (imagesWithoutAlt > 0) {
+      findings.push(`${imagesWithoutAlt} imagen(es) sin atributo alt — agregar descripciones para accesibilidad y SEO`);
+    }
+  }
+
+  // Links internos
+  if (internalLinks) {
+    if (internalLinks.genericAnchorCount > 0) {
+      findings.push(`${internalLinks.genericAnchorCount} de ${internalLinks.totalLinks} enlaces internos usan anchor text genérico ('click aquí', 'leer más') — usar texto descriptivo`);
+    }
+    if (internalLinks.totalLinks < 3 && content.wordCount > 500) {
+      findings.push("Muy pocos enlaces internos — agregar links a contenido relacionado para mejorar la navegabilidad y distribución de autoridad");
+    }
+  }
+
+  // Técnicos
+  if (!meta.hasCanonical) {
+    findings.push("Falta tag canonical — agregar <link rel='canonical'> para evitar problemas de contenido duplicado");
+  }
+  if (!robots?.allowsAIBots && robots?.blockedBots?.length > 0) {
+    findings.push(`Bots de IA bloqueados en robots.txt: ${robots.blockedBots.join(", ")} — considerar permitir acceso para mejorar visibilidad en respuestas de IA`);
+  }
+  if (!llms?.exists) {
+    findings.push("Archivo llms.txt no encontrado — crear uno para facilitar que los modelos de IA comprendan y citen tu contenido");
+  }
+  if (securityHeaders && !securityHeaders.hsts) {
+    findings.push("Falta header HSTS (Strict-Transport-Security) — activar para mejorar seguridad y confianza");
+  }
+
+  // Performance
+  if (latencyMs > 3000) {
+    findings.push(`Latencia alta: ${latencyMs}ms — optimizar tiempo de respuesta del servidor (objetivo: <1000ms)`);
+  }
+  if (performance?.available && performance.performanceScore < 50) {
+    findings.push(`Score de PageSpeed bajo (${performance.performanceScore}/100) — revisar LCP, CLS y TBT para mejorar Core Web Vitals`);
+  }
+
+  // Social
+  if (!meta.hasOgTags) {
+    findings.push("Faltan Open Graph tags — agregar og:title, og:description y og:image para mejor compartibilidad en redes sociales");
+  }
+
+  // Hreflang
+  if (hreflang?.errors > 0) {
+    findings.push(`${hreflang.errors} error(es) en hreflang — corregir para que los motores muestren la versión correcta del idioma`);
+  }
+
+  // Limitar a 8 findings máximo, priorizando los más importantes
+  const limitedFindings = findings.slice(0, 8);
+
+  // Si hay pocos findings, agregar uno positivo
+  if (limitedFindings.length < 3) {
+    if (content.blufDetected) limitedFindings.push("✓ Buen uso del patrón BLUF — el contenido responde directamente");
+    if (schemas.count > 0) limitedFindings.push(`✓ Datos estructurados presentes: ${schemas.types.join(", ")}`);
+    if (headings.hasGoodHierarchy) limitedFindings.push("✓ Buena jerarquía de headings (H1 → H2 → H3)");
+  }
 
   return {
     som_score: somScore,
     rag_probability: ragProb,
-    sentiment_analysis: "Neutral (análisis heurístico)",
+    sentiment_analysis: sentiment,
     bluf_score: content.blufScore,
     geo_alignment: {
       directness,
       fact_density: factDensity,
-      structural_clarity: Math.min(100, structuralClarity),
+      structural_clarity: structuralClarity,
       authority,
-      technical_health: Math.min(100, technicalHealth),
+      technical_health: technicalHealth,
     },
-    semantic_intent: {
-      informational: content.wordCount > 500 ? 60 : 30,
-      commercial: meta.title.match(/comprar|buy|precio|price|oferta/i)
-        ? 60
-        : 20,
-      transactional: meta.title.match(
-        /suscri|regist|sign.up|contact|demo/i
-      )
-        ? 50
-        : 15,
-    },
-    signal_to_noise: somScore,
-    critical_findings: [
-      content.wordCount < 300
-        ? "Contenido insuficiente: menos de 300 palabras"
-        : "El contenido podría beneficiarse de más datos y estadísticas",
-      !content.blufDetected
-        ? "Falta patrón BLUF: el primer párrafo no responde directamente"
-        : "Buen uso del patrón BLUF",
-      !content.hasAuthor
-        ? "Sin señales de autoría: agregar autor verificable"
-        : "Señales de autoría detectadas",
-      content.statsCount < 3
-        ? "Pocas referencias a datos cuantificables"
-        : "Buen uso de datos factuales",
-      !meta.hasOgTags
-        ? "Faltan Open Graph tags para compartibilidad"
-        : "Open Graph tags presentes",
-    ],
+    semantic_intent: semanticIntent,
+    signal_to_noise: signalToNoise,
+    critical_findings: limitedFindings,
   };
 };
 
@@ -1484,7 +1546,7 @@ const extractKeywords = (fullText, title) => {
  * @param {Object} technical - Datos técnicos de la página
  * @param {Object} content - Datos de contenido y meta
  * @param {Object} accessibility - Datos de accesibilidad
- * @param {Object} metrics2026 - Métricas GEO/AEO (de Gemini o heurísticas)
+ * @param {Object} metrics2026 - Métricas GEO/AEO del motor de análisis inteligente
  * @param {Object} imageOptimization - Resultado de analyzeImageOptimization
  * @param {Object} internalLinks - Resultado de analyzeInternalLinks
  * @param {Object} social - Resultado de analyzeSocialReadiness
@@ -1697,35 +1759,25 @@ export async function analyzeWebsite(url) {
     ? estimateCWVOffline($, htmlText)
     : null;
 
-  // --- Paso 8: Análisis con Gemini AI ---
-  let isAI = false;
-  let aiError = null;
-  let aiErrorCode = null;
-  let aiHttpStatus = null;
-  let aiMetrics;
-
-  const geminiResult = await analyzeWithGemini(
-    url,
-    htmlAnalysis.content.fullText,
-    {
-      title: htmlAnalysis.meta.title,
-      description: htmlAnalysis.meta.description,
-    }
-  );
-
-  if (geminiResult.success) {
-    isAI = true;
-    aiMetrics = geminiResult.data;
-  } else {
-    aiError = geminiResult.error;
-    aiErrorCode = geminiResult.errorCode || null;
-    aiHttpStatus = geminiResult.httpStatus || null;
-    aiMetrics = generateHeuristicScores(
-      htmlAnalysis.content,
-      htmlAnalysis.meta,
-      htmlAnalysis.headings
-    );
-  }
+  // --- Paso 8: Análisis Inteligente (motor de reglas — sin dependencias externas) ---
+  const aiMetrics = generateSmartAnalysis({
+    content: htmlAnalysis.content,
+    meta: htmlAnalysis.meta,
+    headings: htmlAnalysis.headings,
+    schemas: htmlAnalysis.schemas,
+    robots: robotsResult,
+    llms: llmsResult,
+    sitemap: sitemapResult,
+    internalLinks: internalLinksResult,
+    imageOptimization: imageOptimizationResult,
+    hreflang: hreflangResult,
+    social: socialResult,
+    keywords: keywordsResult,
+    accessibility: htmlAnalysis.accessibility,
+    securityHeaders,
+    performance: pageSpeedResult,
+    latencyMs,
+  });
 
   // --- Paso 9: Construir objetos de resultado ---
   const technical = {
@@ -1844,10 +1896,6 @@ export async function analyzeWebsite(url) {
   // --- Resultado final ---
   return {
     success: true,
-    isAI,
-    aiError,
-    aiErrorCode,     // v3: código de error específico
-    aiHttpStatus,    // v3: HTTP status del error
     overallScore,
     url,
     analyzedAt: new Date().toISOString(),
