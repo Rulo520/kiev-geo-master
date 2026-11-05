@@ -280,17 +280,21 @@ export default function HomePage() {
       {/* ============ Hero Section ============ */}
       <section className={styles.hero}>
         <h1 className={styles.title}>
-          Kiev <span style={{
-            background: "linear-gradient(135deg, #a78bfa 0%, #06b6d4 50%, #22c55e 100%)",
+          <span style={{
+            background: "linear-gradient(135deg, #a78bfa 0%, #c084fc 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}>Kiev</span>{" "}
+          <span style={{
+            background: "linear-gradient(135deg, #06b6d4 0%, #22c55e 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
           }}>GEO Master</span>
         </h1>
         <p className={styles.subtitle}>
-          Motor de auditoría integral para SEO, AEO y GEO. Análisis técnico
-          avanzado, Core Web Vitals, accesibilidad y cumplimiento de directrices
-          &quot;Answer-First&quot; para dominancia en motores generativos de IA.
+          Auditoría SEO + GEO para dominar buscadores e IAs generativas
         </p>
         <span className={styles.version}>v3.1 — Noviembre 2026</span>
       </section>
